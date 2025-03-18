@@ -951,9 +951,9 @@ const HospitalReportLandingPage = () => {
                 >
                   <Typography variant="subtitle1">{section.name}</Typography>
                 </AccordionSummary>
-                  <AccordionDetails sx={{ padding: { xs: 1, sm: 2 } }}>
-                    {renderSectionComponent(section)}
-                  </AccordionDetails>
+                <AccordionDetails>
+                  {renderSectionComponent(section)}
+                </AccordionDetails>
               </Accordion>
             ))}
           </Box>
@@ -1004,9 +1004,9 @@ const HospitalReportLandingPage = () => {
                   >
                     <Typography variant="subtitle1">{section.name}</Typography>
                   </AccordionSummary>
-                    <AccordionDetails sx={{ padding: { xs: 1, sm: 2 } }}>
-                      {renderSectionComponent(section)}
-                    </AccordionDetails>
+                  <AccordionDetails>
+                    {renderSectionComponent(section)}
+                  </AccordionDetails>
                 </Accordion>
               ))
             }
@@ -1045,12 +1045,7 @@ const HospitalReportLandingPage = () => {
   // Render review and submit form
   const renderReviewForm = () => {
     return (
-      <FormPaper elevation={2} sx={{ 
-        padding: { xs: 2, sm: 3 },
-        overflowX: 'hidden',
-        width: '100%',
-        boxSizing: 'border-box'
-      }}>
+      <FormPaper elevation={2}>
         <Typography variant="h6" gutterBottom>
           Review & Submit
         </Typography>
@@ -1094,7 +1089,7 @@ const HospitalReportLandingPage = () => {
             </Typography>
             
             {submittedRecords.length > 0 ? (
-            <TableContainer sx={{ overflowX: 'auto', width: '100%' }}>
+            <TableContainer>
               <Table size="small">
                 <TableHead>
                   <TableRow>
@@ -1244,14 +1239,7 @@ const HospitalReportLandingPage = () => {
 
   // Main render
   return (
-    <Box sx={{ 
-      maxWidth: 1200, 
-      margin: '0 auto',
-      overflow: 'auto',
-      height: '100%',
-      minHeight: '100vh',
-      padding: { xs: 1, sm: 2 } 
-    }}>
+    <Box sx={{ maxWidth: 1200, margin: '0 auto' }}>
       <HeaderAppBar>
         <Toolbar>
           <IconButton edge="start" color="inherit" aria-label="back" sx={{ mr: 2 }}>
