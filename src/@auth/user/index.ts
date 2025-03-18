@@ -13,14 +13,5 @@ export type User = FuseAuthUser & {
 	email?: string;
 	shortcuts?: string[];
 	settings?: PartialDeep<FuseSettingsConfigType>;
-	social?: {
-		whatsapp?: string;
-		skype?: string;
-		meta?: string;
-		telegram?: string;
-		x: string;
-		tictok: string;
-		instagram: string;
-	},
 	loginRedirectUrl?: string; // The URL to redirect to after login.
 };

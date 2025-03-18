@@ -9,8 +9,6 @@ import Tab from '@mui/material/Tab';
 import { useState } from 'react';
 import _ from 'lodash';
 import JwtSignUpTab from './tabs/JwSignUpTab';
-import FirebaseSignUpTab from './tabs/FirebaseSignUpTab';
-import AwsSignUpTab from './tabs/AwsSignUpTab';
 
 const tabs = [
 	{
@@ -18,18 +16,6 @@ const tabs = [
 		title: 'JWT',
 		logo: '/assets/images/logo/jwt.svg',
 		logoClass: 'h-9 p-1 bg-black rounded-lg'
-	},
-	{
-		id: 'firebase',
-		title: 'Firebase',
-		logo: '/assets/images/logo/firebase.svg',
-		logoClass: 'h-9'
-	},
-	{
-		id: 'aws',
-		title: 'AWS',
-		logo: '/assets/images/logo/aws-amplify.svg',
-		logoClass: 'h-9'
 	}
 ];
 
@@ -47,11 +33,6 @@ function SignUpPage() {
 		<div className="flex min-w-0 flex-1 flex-col items-center sm:flex-row sm:justify-center md:items-start md:justify-start">
 			<Paper className="h-full w-full px-4 py-2 ltr:border-r-1 rtl:border-l-1 sm:h-auto sm:w-auto sm:rounded-xl sm:p-12 sm:shadow-sm md:flex md:h-full md:w-1/2 md:items-center md:justify-end md:rounded-none md:p-16 md:shadow-none">
 				<div className="mx-auto w-full max-w-80 sm:mx-0 sm:w-80">
-					{/*<img
-						className="w-12"
-						src="/assets/images/logo/logo.svg"
-						alt="logo"
-					/>*/}
 
 					<Typography className="mt-8 text-4xl font-extrabold leading-[1.25] tracking-tight">
 						Sign up
@@ -87,13 +68,6 @@ function SignUpPage() {
 								disableRipple
 								onClick={() => handleSelectTab(item.id)}
 								key={item.id}
-								icon={
-									<img
-										className={item.logoClass}
-										src={item.logo}
-										alt={item.title}
-									/>
-								}
 								className="min-w-0"
 								label={item.title}
 							/>
@@ -101,8 +75,6 @@ function SignUpPage() {
 					</Tabs>
 
 					{selectedTabId === 'jwt' && <JwtSignUpTab />}
-					{selectedTabId === 'firebase' && <FirebaseSignUpTab />}
-					{selectedTabId === 'aws' && <AwsSignUpTab />}
 				</div>
 			</Paper>
 

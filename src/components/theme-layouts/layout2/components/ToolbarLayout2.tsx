@@ -6,7 +6,7 @@ import { memo } from 'react';
 import NavbarToggleButton from 'src/components/theme-layouts/components/navbar/NavbarToggleButton';
 import { useToolbarTheme } from '@fuse/core/FuseSettings/hooks/fuseThemeHooks';
 import useFuseLayoutSettings from '@fuse/core/FuseLayout/useFuseLayoutSettings';
-import NotificationPanelToggleButton from '@/app/(control-panel)/apps/notifications/NotificationPanelToggleButton';
+import NotificationPanelToggleButton from '@/app/(private)/apps/notifications/NotificationPanelToggleButton';
 import AdjustFontSize from '../../components/AdjustFontSize';
 import FullScreenToggle from '../../components/FullScreenToggle';
 import LanguageSwitcher from '../../components/LanguageSwitcher';

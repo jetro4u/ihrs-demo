@@ -10,7 +10,7 @@ import themeOptions from 'src/configs/themeOptions';
 import _ from 'lodash';
 import useFuseLayoutSettings from '@fuse/core/FuseLayout/useFuseLayoutSettings';
 import { useToolbarTheme } from '@fuse/core/FuseSettings/hooks/fuseThemeHooks';
-import NotificationPanelToggleButton from '@/app/(control-panel)/apps/notifications/NotificationPanelToggleButton';
+import NotificationPanelToggleButton from '@/app/(private)/apps/notifications/NotificationPanelToggleButton';
 import AdjustFontSize from '../../components/AdjustFontSize';
 import FullScreenToggle from '../../components/FullScreenToggle';
 import NavigationShortcuts from '../../components/navigation/NavigationShortcuts';

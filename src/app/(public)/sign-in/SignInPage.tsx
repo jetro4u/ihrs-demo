@@ -11,8 +11,6 @@ import CardContent from '@mui/material/CardContent';
 import _ from 'lodash';
 import { lighten } from '@mui/material/styles';
 import JwtLoginTab from './tabs/JwtSignInTab';
-import FirebaseSignInTab from './tabs/FirebaseSignInTab';
-import AwsSignInTab from './tabs/AwsSignInTab';
 
 const tabs = [
 	{
@@ -87,13 +85,6 @@ function SignInPage() {
 								disableRipple
 								onClick={() => handleSelectTab(item.id)}
 								key={item.id}
-								icon={
-									<img
-										className={item.logoClass}
-										src={item.logo}
-										alt={item.title}
-									/>
-								}
 								className="min-w-0"
 								label={item.title}
 							/>
