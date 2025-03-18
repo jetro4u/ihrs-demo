@@ -1262,16 +1262,15 @@ const HospitalReportLandingPage = () => {
   // Main render
   return (
     <Box sx={{ 
-    //  maxWidth: 1100, 
+      maxWidth: 1100,
       margin: '0 auto',
-      height: '100%',
+      height: '100vh', // Set to viewport height
+      maxHeight: '100vh', // Constrain to viewport height
       display: 'flex',
       flexDirection: 'column',
-      WebkitOverflowScrolling: 'touch',
-      overscrollBehavior: 'contain',
-      overflow: 'auto',
-      paddingBottom: '100px',
-      padding: { xs: 1, sm: 2 } 
+      overflow: 'hidden', // Don't allow overflow at container level
+      padding: { xs: 1, sm: 2 },
+      boxSizing: 'border-box' // Ensure padding doesn't affect total width/height
     }}>
       <HeaderAppBar>
         <Toolbar>
@@ -1309,9 +1308,9 @@ const HospitalReportLandingPage = () => {
       <Box sx={{ 
         flex: '1 1 auto',
         overflow: 'auto',
-        WebkitOverflowScrolling: 'touch',
         overscrollBehavior: 'contain',
-        '-webkit-overflow-scrolling': 'touch' // For older iOS support
+        paddingBottom: '100px', // Add padding at the bottom for content
+        position: 'relative' // Needed for proper scrolling
       }}>
         {renderStep()}
       </Box>
