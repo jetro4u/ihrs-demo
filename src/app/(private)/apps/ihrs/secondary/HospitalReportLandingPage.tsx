@@ -1245,7 +1245,7 @@ const HospitalReportLandingPage = () => {
   // Main render
   return (
     <Box sx={{ 
-      maxWidth: 1200, 
+      maxWidth: 1100, 
       margin: '0 auto',
       WebkitOverflowScrolling: 'touch', // Add touch scrolling
       overscrollBehavior: 'auto',       // Prevent scroll chaining
