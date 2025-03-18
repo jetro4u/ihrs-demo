@@ -492,7 +492,7 @@ const TemplateMenuObjectForm: React.FC<TemplateMenuObjectFormProps> = ({
     <Card sx={{ 
       width: '100%', 
       maxWidth: '1024px',
-      overflowX: 'hidden', // Prevent horizontal scrolling
+    //  overflowX: 'hidden', // Prevent horizontal scrolling
       WebkitOverflowScrolling: 'touch'
     }}>
       <CardHeader 
@@ -535,7 +535,7 @@ const TemplateMenuObjectForm: React.FC<TemplateMenuObjectFormProps> = ({
       
       <CardContent sx={{ 
         p: 3,
-        maxHeight: isMobile ? '70vh' : 'none',
+    //    maxHeight: isMobile ? '70vh' : 'none',
         overflow: isMobile ? 'auto' : 'visible',
         WebkitOverflowScrolling: 'touch'
       }}>

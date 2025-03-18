@@ -1391,8 +1391,8 @@ const TemplateMenuVerticalMatrix: FC<TemplateMenuVerticalMatrixProps> = ({
   return (
     <Card sx={{ 
       width: '100%', 
-      maxWidth: '1024px',
-      overflowX: 'hidden', // Prevent horizontal scrolling
+    //  maxWidth: '1024px',
+    //  overflowX: 'hidden', // Prevent horizontal scrolling
       WebkitOverflowScrolling: 'touch'
     }}>
       <CardHeader 
@@ -1444,8 +1444,8 @@ const TemplateMenuVerticalMatrix: FC<TemplateMenuVerticalMatrixProps> = ({
       
       <CardContent sx={{ 
         p: 3,
-        maxHeight: isMobile ? '70vh' : 'none',
-        overflow: isMobile ? 'auto' : 'visible',
+      //  maxHeight: isMobile ? '70vh' : 'none',
+      //  overflow: isMobile ? 'auto' : 'visible',
         WebkitOverflowScrolling: 'touch'
       }}>
         {/* Data element selection dropdown */}
