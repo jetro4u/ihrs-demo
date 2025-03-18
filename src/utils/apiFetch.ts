@@ -1,6 +1,3 @@
-import { validateSelfHostedTenant } from '../configs/env';
-
-const isValidTenant = validateSelfHostedTenant();
 const apiUrl = new URL((import.meta?.env?.VITE_API_BASE_URL as string) || 'http://localhost:3000');
 const devApiBaseHost = apiUrl.hostname;
 const PORT = Number(import.meta.env.VITE_PORT) || 3000;
@@ -13,19 +10,13 @@ type FetchOptions = RequestInit;
 
 export class FetchApiError extends Error {
 	status: number;
+
 	data: unknown;
 
 	constructor(status: number, data: unknown) {
 		super(`FetchApiError: ${status}`);
 		this.status = status;
 		this.data = data;
-	}
-}
-
-export class TenantAuthorizationError extends Error {
-	constructor() {
-		super('Tenant authorization failed: Invalid or missing tenant credentials');
-		this.name = 'TenantAuthorizationError';
 	}
 }
 
@@ -43,13 +34,8 @@ export const removeGlobalHeaders = (headerKeys: string[]) => {
 	});
 };
 
-// Main apiFetch function with tenant validation and interceptors
+// Main apiFetch function with interceptors and type safety
 const apiFetch = async (endpoint: string, options: FetchOptions = {}) => {
-	// Check for valid tenant before proceeding
-	if (!isValidTenant) {
-		throw new TenantAuthorizationError();
-	}
-
 	const { headers, ...restOptions } = options;
 	const method = restOptions.method || 'GET';
 	// Set default headers, including global headers
