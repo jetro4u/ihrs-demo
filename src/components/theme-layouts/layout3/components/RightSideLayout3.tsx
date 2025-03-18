@@ -1,7 +1,7 @@
 import { lazy, memo, Suspense } from 'react';
 
 const QuickPanel = lazy(() => import('@/components/theme-layouts/components/quickPanel/QuickPanel'));
-const NotificationPanel = lazy(() => import('@/app/(control-panel)/apps/notifications/NotificationPanel'));
+const NotificationPanel = lazy(() => import('@/app/(private)/apps/notifications/NotificationPanel'));
 
 /**
  * The right side layout 3.
