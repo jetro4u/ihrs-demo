@@ -1247,9 +1247,9 @@ const HospitalReportLandingPage = () => {
     <Box sx={{ 
       maxWidth: 1200, 
       margin: '0 auto',
-      overflow: 'auto',
-      height: '100%',
-      minHeight: '100vh',
+      WebkitOverflowScrolling: 'touch', // Add touch scrolling
+      overscrollBehavior: 'auto',       // Prevent scroll chaining
+      paddingBottom: '100px',           // Add extra padding at bottom
       padding: { xs: 1, sm: 2 } 
     }}>
       <HeaderAppBar>
