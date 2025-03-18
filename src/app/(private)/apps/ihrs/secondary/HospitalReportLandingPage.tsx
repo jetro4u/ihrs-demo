@@ -921,7 +921,10 @@ const HospitalReportLandingPage = () => {
   // Render general patient statistics form with better organization
   const renderDatasetSections = () => {
     return (
-      <Box>
+      <Box sx={{
+        height: '100%',
+        overflow: 'visible'
+      }}>
         <Paper sx={{ p: 3, mb: 3 }}>
           <Typography variant="h5" gutterBottom>
             Hospital Report Form
@@ -943,6 +946,7 @@ const HospitalReportLandingPage = () => {
                 expanded={expandedSections[section.id] !== undefined ? expandedSections[section.id] : section.enabled} 
                 onChange={() => toggleSectionExpansion(section.id)}
                 sx={{ mb: 2 }}
+                TransitionProps={{ unmountOnExit: true }} // This helps with rendering performance
               >
                 <AccordionSummary
                   expandIcon={<ExpandMore />}
@@ -951,9 +955,13 @@ const HospitalReportLandingPage = () => {
                 >
                   <Typography variant="subtitle1">{section.name}</Typography>
                 </AccordionSummary>
-                  <AccordionDetails sx={{ padding: { xs: 1, sm: 2 } }}>
-                    {renderSectionComponent(section)}
-                  </AccordionDetails>
+                <AccordionDetails sx={{ 
+                  padding: { xs: 1, sm: 2 },
+                  maxHeight: '70vh', // Limit height on small screens
+                  overflow: 'auto'   // Allow scrolling inside if needed
+                }}>
+                  {renderSectionComponent(section)}
+                </AccordionDetails>
               </Accordion>
             ))}
           </Box>
@@ -1020,7 +1028,16 @@ const HospitalReportLandingPage = () => {
           </Box>
           
           {/* Navigation Buttons */}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
+          <Box sx={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            mt: 4,
+            position: 'sticky',
+            bottom: 0,
+            backgroundColor: 'background.paper',
+            padding: 2,
+            zIndex: 10
+          }}>
             <Button
               variant="outlined"
               onClick={() => setActiveStep(0)}
@@ -1247,9 +1264,13 @@ const HospitalReportLandingPage = () => {
     <Box sx={{ 
       maxWidth: 1100, 
       margin: '0 auto',
-      WebkitOverflowScrolling: 'touch', // Add touch scrolling
-      overscrollBehavior: 'auto',       // Prevent scroll chaining
-      paddingBottom: '100px',           // Add extra padding at bottom
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      WebkitOverflowScrolling: 'touch',
+      overscrollBehavior: 'contain',
+      overflow: 'auto',
+      paddingBottom: '100px',
       padding: { xs: 1, sm: 2 } 
     }}>
       <HeaderAppBar>
@@ -1272,7 +1293,10 @@ const HospitalReportLandingPage = () => {
         </Toolbar>
       </HeaderAppBar>
       
-      <Box sx={{ display: collapsed ? 'none' : 'block' }}>
+      <Box sx={{ 
+        display: collapsed ? 'none' : 'block',
+        flexShrink: 0
+      }}>
         <Stepper activeStep={activeStep} sx={{ pt: 3, pb: 5 }} orientation="vertical">
           {steps.map((label) => (
             <Step key={label}>
@@ -1282,7 +1306,15 @@ const HospitalReportLandingPage = () => {
         </Stepper>
       </Box>
       
-      {renderStep()}
+      <Box sx={{ 
+        flex: '1 1 auto',
+        overflow: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        overscrollBehavior: 'contain',
+        '-webkit-overflow-scrolling': 'touch' // For older iOS support
+      }}>
+        {renderStep()}
+      </Box>
       
       <Snackbar
         open={alertInfo.open}

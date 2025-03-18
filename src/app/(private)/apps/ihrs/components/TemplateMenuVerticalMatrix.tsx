@@ -1389,7 +1389,12 @@ const TemplateMenuVerticalMatrix: FC<TemplateMenuVerticalMatrixProps> = ({
 
   // Main render function
   return (
-    <Card sx={{ width: '100%', maxWidth: '1024px' }}>
+    <Card sx={{ 
+      width: '100%', 
+      maxWidth: '1024px',
+      overflowX: 'hidden', // Prevent horizontal scrolling
+      WebkitOverflowScrolling: 'touch'
+    }}>
       <CardHeader 
         title={
           <Typography variant="h5" color="primary">
@@ -1437,7 +1442,12 @@ const TemplateMenuVerticalMatrix: FC<TemplateMenuVerticalMatrixProps> = ({
         </Box>
       </Box>
       
-      <CardContent sx={{ p: 3 }}>
+      <CardContent sx={{ 
+        p: 3,
+        maxHeight: isMobile ? '70vh' : 'none',
+        overflow: isMobile ? 'auto' : 'visible',
+        WebkitOverflowScrolling: 'touch'
+      }}>
         {/* Data element selection dropdown */}
         <Box sx={{ mb: 3, display: 'flex', alignItems: 'flex-end', gap: 1 }}>
           <FormControl fullWidth error={!!error.element}>

@@ -12,7 +12,9 @@ import {
   TextField,
   InputAdornment,
   CircularProgress,
-  Chip
+  Chip,
+  useMediaQuery, 
+  useTheme 
 } from '@mui/material';
 import Grid from '@mui/material/Grid2';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -116,6 +118,8 @@ const TemplateMenuObjectForm: React.FC<TemplateMenuObjectFormProps> = ({
   const [error, setError] = useState({ element: '' });
   const [loading, setLoading] = useState(false);
   const [savingBlocks, setSavingBlocks] = useState<Record<string, boolean>>({});
+    const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   
   // Prepare data elements as options, sorted by dataElementOrder
   const elementOptions = q.sort((a, b) => a.dataElementOrder - b.dataElementOrder);
@@ -485,7 +489,12 @@ const TemplateMenuObjectForm: React.FC<TemplateMenuObjectFormProps> = ({
   };
 
   return (
-    <Card sx={{ width: '100%', maxWidth: '1024px' }}>
+    <Card sx={{ 
+      width: '100%', 
+      maxWidth: '1024px',
+      overflowX: 'hidden', // Prevent horizontal scrolling
+      WebkitOverflowScrolling: 'touch'
+    }}>
       <CardHeader 
         title={
           <Typography variant="h5" color="primary">
@@ -524,7 +533,12 @@ const TemplateMenuObjectForm: React.FC<TemplateMenuObjectFormProps> = ({
         </Box>
       </Box>
       
-      <CardContent sx={{ p: 3 }}>
+      <CardContent sx={{ 
+        p: 3,
+        maxHeight: isMobile ? '70vh' : 'none',
+        overflow: isMobile ? 'auto' : 'visible',
+        WebkitOverflowScrolling: 'touch'
+      }}>
         <Box sx={{ mb: 3, display: 'flex', alignItems: 'flex-end', gap: 1 }}>
           <FormControl fullWidth error={!!error.element}>
             <ObjectAutoCompleteSelect
