@@ -1262,7 +1262,7 @@ const HospitalReportLandingPage = () => {
   // Main render
   return (
     <Box sx={{ 
-      maxWidth: 1100, 
+    //  maxWidth: 1100, 
       margin: '0 auto',
       height: '100%',
       display: 'flex',
