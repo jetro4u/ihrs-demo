@@ -70839,47 +70839,90 @@
 				}
 				},
 				{
-				"id": "17",
-				"name": "Opthalmology Procedures",
-				"type": "dynamic",
-				"sortOrder": 17,
-				"formBlock": "TemplateMenuObjectForm",
-				"access": {
-					"read": true,
-					"write": true,
-					"delete": false,
-					"manage": false
-				},
-				"categoryCombos": [],
-				"dataElements": [],
-				"indicators": [],
-				"showColumnTotals": true,
-				"showRowTotals": true,
-				"enabled": false,
-				"description": "Ophthalmology procedures performed during the reporting period",
-				"collapsible": true,
-				"defaultCollapsed": true,
-				"conditional": {
-					"showIf": "hasOphthalmologyServices == true",
-					"dependsOn": ["hasOphthalmologyServices"]
-				},
-				"layout": {
-					"columns": 2,
-					"style": "standard"
-				},
-				"summary": {
-					"enabled": true,
-					"calculations": [
-					{
-						"type": "SUM",
-						"fields": ["*"]
+					"id": "17",
+					"name": "Opthalmology Procedures",
+					"type": "dynamic",
+					"sortOrder": 17,
+					"formBlock": "TemplateMenuObjectForm",
+					"access": {
+						"read": true,
+						"write": true,
+						"delete": false,
+						"manage": false
+					},
+					"categoryCombos": [],
+					"dataElements": [],
+					"indicators": [],
+					"showColumnTotals": true,
+					"showRowTotals": true,
+					"enabled": false,
+					"description": "Ophthalmology procedures performed during the reporting period",
+					"collapsible": true,
+					"defaultCollapsed": true,
+					"conditional": {
+						"showIf": "hasOphthalmologyProcedures == true",
+						"dependsOn": ["hasOphthalmologyProcedures"]
+					},
+					"layout": {
+						"columns": 2,
+						"style": "standard"
+					},
+					"summary": {
+						"enabled": true,
+						"calculations": [
+						{
+							"type": "SUM",
+							"fields": ["*"]
+						}
+						]
+					},
+					"printOptions": {
+						"pageBreakBefore": true,
+						"includeInTOC": true
 					}
-					]
 				},
-				"printOptions": {
-					"pageBreakBefore": true,
-					"includeInTOC": true
-				}
+				{
+					"id": "18",
+					"name": "Endoscopic Procedures",
+					"type": "dynamic",
+					"sortOrder": 18,
+					"formBlock": "TemplateMenuObjectForm",
+					"access": {
+						"read": true,
+						"write": true,
+						"delete": false,
+						"manage": false
+					},
+					"categoryCombos": [],
+					"dataElements": [],
+					"indicators": [],
+					"showColumnTotals": true,
+					"showRowTotals": true,
+					"enabled": false,
+					"description": "Endoscopic Procedures performed during the reporting period",
+					"collapsible": true,
+					"defaultCollapsed": true,
+					"conditional": {
+						"showIf": "hasEndoscopicProcedures == true",
+						"dependsOn": ["hasEndoscopicProcedures"]
+					},
+					"layout": {
+						"columns": 2,
+						"style": "standard"
+					},
+					"summary": {
+						"enabled": true,
+						"calculations": [
+						{
+							"type": "SUM",
+							"fields": ["*"]
+						}
+						]
+					},
+					"printOptions": {
+						"pageBreakBefore": true,
+						"includeInTOC": true
+					}
 				}
 			],
 			"sectionOverviews": [
