@@ -7,11 +7,16 @@ import { worker } from '@mock-utils/mswMockAdapter';
 import { API_BASE_URL } from '@/utils/apiFetch';
 
 async function mockSetup() {
+	// Use window.location.origin as a fallback for production
+	const workerUrl = import.meta.env.DEV 
+	  ? `${API_BASE_URL}/mockServiceWorker.js`
+	  : `${window.location.origin}/mockServiceWorker.js`;
+	  
 	return worker.start({
-		onUnhandledRequest: 'bypass',
-		serviceWorker: {
-			url: `${API_BASE_URL}/mockServiceWorker.js`
-		}
+	  onUnhandledRequest: 'bypass',
+	  serviceWorker: {
+		url: workerUrl
+	  }
 	});
 }
 
