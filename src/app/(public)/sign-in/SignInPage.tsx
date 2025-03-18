@@ -20,18 +20,6 @@ const tabs = [
 		title: 'JWT',
 		logo: '/assets/images/logo/jwt.svg',
 		logoClass: 'h-9 p-1 bg-black rounded-lg'
-	},
-	{
-		id: 'firebase',
-		title: 'Firebase',
-		logo: '/assets/images/logo/firebase.svg',
-		logoClass: 'h-9'
-	},
-	{
-		id: 'aws',
-		title: 'AWS',
-		logo: '/assets/images/logo/aws-amplify.svg',
-		logoClass: 'h-9'
 	}
 ];
 
@@ -113,8 +101,6 @@ function SignInPage() {
 					</Tabs>
 
 					{selectedTabId === 'jwt' && <JwtLoginTab />}
-					{selectedTabId === 'firebase' && <FirebaseSignInTab />}
-					{selectedTabId === 'aws' && <AwsSignInTab />}
 				</CardContent>
 			</Paper>
 
