@@ -55,7 +55,14 @@ import { CompleteDatasetPayload, CategoryOptionCombo, DataRecordPayload, DataVal
 const FormPaper = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(3),
   marginBottom: theme.spacing(3),
-  borderRadius: 12
+  borderRadius: 12,
+  width: '100%',
+  maxWidth: '100%',
+  boxSizing: 'border-box',
+  overflowX: 'hidden', // Prevent horizontal overflow
+  '& .MuiTable-root': {
+    tableLayout: 'fixed', // Helps with table width issues
+  }
 }));
 
 const HeaderAppBar = styled(AppBar)(({ theme }) => ({
@@ -946,7 +953,7 @@ const HospitalReportLandingPage = () => {
                 expanded={expandedSections[section.id] !== undefined ? expandedSections[section.id] : section.enabled} 
                 onChange={() => toggleSectionExpansion(section.id)}
                 sx={{ mb: 2 }}
-                TransitionProps={{ unmountOnExit: true }} // This helps with rendering performance
+                slotProps={{ transition: { unmountOnExit: true } }}
               >
                 <AccordionSummary
                   expandIcon={<ExpandMore />}
@@ -1032,11 +1039,17 @@ const HospitalReportLandingPage = () => {
             display: 'flex', 
             justifyContent: 'space-between', 
             mt: 4,
-            position: 'sticky',
+            position: 'fixed', // Changed from sticky to fixed
             bottom: 0,
+            left: 0,
+            right: 0,
             backgroundColor: 'background.paper',
             padding: 2,
-            zIndex: 10
+            zIndex: 1050,
+            boxShadow: '0px -2px 4px rgba(0,0,0,0.1)', // Add shadow for visual separation
+            maxWidth: 1100, // Match the container width
+            margin: '0 auto', // Center the buttons
+            boxSizing: 'border-box'
           }}>
             <Button
               variant="outlined"
