@@ -105,6 +105,7 @@ const HospitalReportLandingPage = () => {
   const [bedCapacity, setBedCapacity] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [showStepper, setShowStepper] = useState(true);
   
   // State for expanded sections and enabled dynamic sections
   const [expandedSections, setExpandedSections] = useState({});
@@ -345,6 +346,29 @@ const HospitalReportLandingPage = () => {
       window.removeEventListener('keypress', updateActivity);
       window.removeEventListener('scroll', updateActivity);
       window.removeEventListener('mousemove', updateActivity);
+    };
+  }, []);
+
+  useEffect(() => {
+    let lastScrollY = window.scrollY;
+    
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      
+      // Hide stepper when scrolling down, show when scrolling up
+      if (currentScrollY > lastScrollY && currentScrollY > 100) {
+        setShowStepper(false);
+      } else if (currentScrollY < lastScrollY) {
+        setShowStepper(true);
+      }
+      
+      lastScrollY = currentScrollY;
+    };
+    
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
     };
   }, []);
 
@@ -1306,8 +1330,13 @@ const HospitalReportLandingPage = () => {
       </HeaderAppBar>
       
       <Box sx={{ 
-        display: collapsed ? 'none' : 'block',
-        flexShrink: 0
+        display: collapsed || (!showStepper && window.innerWidth < 600) ? 'none' : 'block',
+        flexShrink: 0,
+        transition: 'all 0.3s ease-in-out', // Add smooth transition
+        position: 'sticky',
+        top: 64, // Adjust based on your header height
+        backgroundColor: 'background.paper',
+        zIndex: 1000
       }}>
         <Stepper activeStep={activeStep} sx={{ pt: 3, pb: 5 }} orientation="vertical">
           {steps.map((label) => (
