@@ -59,15 +59,9 @@ const FormPaper = styled(Paper)(({ theme }) => ({
   width: '100%',
   maxWidth: '100%',
   boxSizing: 'border-box',
-  overflowX: 'hidden',
+  overflowX: 'hidden', // Prevent horizontal overflow
   '& .MuiTable-root': {
-    tableLayout: 'fixed',
-    width: '100%',
-    maxWidth: '100%'
-  },
-  '& .MuiTableContainer-root': {
-    overflowX: 'auto',
-    width: '100%'
+    tableLayout: 'fixed', // Helps with table width issues
   }
 }));
 
@@ -962,14 +956,7 @@ const HospitalReportLandingPage = () => {
         height: '100%',
         overflow: 'visible'
       }}>
-        <Paper sx={{ 
-          p: 3, 
-          mb: 3, 
-          width: '100%', 
-          maxWidth: '100%', 
-          boxSizing: 'border-box',
-          overflowX: 'hidden'
-        }}>
+        <Paper sx={{ p: 3, mb: 3 }}>
           <Typography variant="h5" gutterBottom>
             Hospital Report Form
           </Typography>
@@ -1116,7 +1103,6 @@ const HospitalReportLandingPage = () => {
         padding: { xs: 2, sm: 3 },
         overflowX: 'hidden',
         width: '100%',
-        maxWidth: '100%',
         boxSizing: 'border-box'
       }}>
         <Typography variant="h6" gutterBottom>
@@ -1162,12 +1148,8 @@ const HospitalReportLandingPage = () => {
             </Typography>
             
             {submittedRecords.length > 0 ? (
-            <TableContainer sx={{ 
-              overflowX: 'auto', 
-              width: '100%',
-              maxWidth: '100%'
-            }}>
-              <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
+            <TableContainer sx={{ overflowX: 'auto', width: '100%' }}>
+              <Table size="small">
                 <TableHead>
                   <TableRow>
                     <StyledTableCell>Indicators</StyledTableCell>
@@ -1317,7 +1299,6 @@ const HospitalReportLandingPage = () => {
   // Main render
   return (
     <Box sx={{ 
-      width: '100%',
       maxWidth: 1100,
       margin: '0 auto',
       height: '100vh', // Set to viewport height
@@ -1329,20 +1310,13 @@ const HospitalReportLandingPage = () => {
       boxSizing: 'border-box' // Ensure padding doesn't affect total width/height
     }}>
       <HeaderAppBar>
-        <Toolbar sx={{ 
-          display: 'flex', 
-          justifyContent: 'space-between',
-          overflowX: 'hidden',
-          width: '100%'
-        }}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <IconButton edge="start" color="inherit" aria-label="back" sx={{ mr: 1 }}>
-              <DomsSvgIcon>heroicons-outline:arrow-left</DomsSvgIcon>
-            </IconButton>
-            <Typography variant="h6" component="div" noWrap sx={{ flexGrow: 1 }}>
-              Hospital Report
-            </Typography>
-          </Box>    
+        <Toolbar>
+          <IconButton edge="start" color="inherit" aria-label="back" sx={{ mr: 2 }}>
+            <DomsSvgIcon>heroicons-outline:arrow-left</DomsSvgIcon>
+          </IconButton>
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+            Hospital Report
+          </Typography>
           <IconButton 
             color="inherit" 
             onClick={() => setCollapsed(prev => !prev)}
@@ -1377,14 +1351,8 @@ const HospitalReportLandingPage = () => {
         flex: '1 1 auto',
         overflow: 'auto',
         overscrollBehavior: 'contain',
-        paddingBottom: '100px',
-        position: 'relative',
-        width: '100%',
-        maxWidth: '100%',
-        '& > *': { // Apply to all immediate children
-          maxWidth: '100%',
-          overflowX: 'hidden'
-        }
+        paddingBottom: '100px', // Add padding at the bottom for content
+        position: 'relative' // Needed for proper scrolling
       }}>
         {renderStep()}
       </Box>

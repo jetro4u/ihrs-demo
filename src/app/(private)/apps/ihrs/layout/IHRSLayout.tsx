@@ -17,15 +17,21 @@ import IHRSSidebarHeader from './IHRSSidebarHeader';
 const Root = styled(FusePageSimple)(({ theme }) => ({
 	'& .FusePageCarded-header': {},
 	'& .FusePageCarded-content': {
-		backgroundColor: theme.palette.background.default
+	  backgroundColor: theme.palette.background.default,
+	  width: '100%',
+	  maxWidth: '100%',
+	  overflowX: 'hidden'
 	},
-	'& .FusePageCarded-wrapper': {},
+	'& .FusePageCarded-wrapper': {
+	  width: '100%',
+	  maxWidth: '100%'
+	},
 	'& .FusePageCarded-leftSidebar': {},
 	'& .description': {},
 	'& [class^="language-"]': {
-		margin: 0
+	  margin: 0
 	}
-}));
+  }));
 
 /**
  * IHRS Layout
