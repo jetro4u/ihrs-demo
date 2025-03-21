@@ -57,8 +57,6 @@ interface TemplateMenuMatrixBlockProps {
   source: string;
   onSubmit?: (data: string, dataElement: string, categoryOptionCombo: string) => Promise<{ success: boolean }>;
   templates?: Template[];
-  onNext?: () => void;
-  onBack?: () => void;
   existingValues?: any[];
   onValuesUpdate?: (values: any[]) => void;
   readOnly?: boolean;
@@ -76,8 +74,6 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
   source,
   onSubmit,
   templates: externalTemplates = [],
-  onNext,
-  onBack,
   existingValues = [],
   onValuesUpdate,
   readOnly = false,
@@ -1448,29 +1444,6 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
           </Box>
         )}
       </CardContent>
-      
-      {/* Navigation buttons */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3, mb: 3, px: 3, width: '100%' }}>
-        {onBack && (
-          <Button
-            variant="outlined"
-            onClick={onBack}
-            disabled={loading}
-          >
-            Back
-          </Button>
-        )}
-        {onNext && (
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={onNext}
-            disabled={submittedElements.length === 0 || loading}
-          >
-            Next
-          </Button>
-        )}
-      </Box>
     </Card>
   );
 };

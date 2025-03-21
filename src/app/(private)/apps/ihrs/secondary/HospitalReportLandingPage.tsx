@@ -1121,7 +1121,6 @@ const HospitalReportLandingPage = () => {
     const selectedDataSet = localStorage.getItem('ihrs-selected-dataset') || '';
     const selectedPeriod = localStorage.getItem('ihrs-selected-period') || '';
     const filteredDataElements = getDataElementsBySection(selectedDataSet, section.name);
-    console.log("section.id", section.id)
     
     switch(section.formBlock) {
       case 'TemplateMenuObjectForm':
@@ -1205,8 +1204,6 @@ const HospitalReportLandingPage = () => {
               onSubmit={(data, dataElement, categoryOptionCombo) => 
                 handleFormBlockSubmit(data, 'TemplateMenuMatrixBlock', dataElement, categoryOptionCombo, section.id)}
               templates={templates}
-              onNext={handleNext}
-              onBack={handleBack}
               existingValues={submittedValues}
               onValuesUpdate={handleValuesUpdate}
             />
@@ -1349,7 +1346,8 @@ const HospitalReportLandingPage = () => {
                   },
                   '&:before': {
                     display: 'none'
-                  }
+                  },
+                  width: '100%'
                 }}
                 slotProps={{ transition: { unmountOnExit: true } }}
               >
@@ -1387,10 +1385,18 @@ const HospitalReportLandingPage = () => {
                   </Box>
                 </AccordionSummary>
                 <AccordionDetails sx={{ 
-                  padding: { xs: 2, sm: 3 },
+                  padding: { xs: 1, sm: 3 },
                   maxHeight: '70vh', // Limit height on small screens
                   overflow: 'auto',
-                  borderTop: '1px solid #e0e0e0'
+                  borderTop: '1px solid #e0e0e0',
+                  '& .MuiFormControl-root': { // Target form controls within
+                    width: '100%', // Ensure inputs take full width
+                    maxWidth: '100%'
+                  },
+                  '& .MuiBox-root': { // Target Box components within
+                    width: '100%',
+                    maxWidth: '100%'
+                  }
                 }}>
                   {renderSectionComponent(section)}
                 </AccordionDetails>
@@ -1477,7 +1483,8 @@ const HospitalReportLandingPage = () => {
                     },
                     '&:before': {
                       display: 'none'
-                    }
+                    },
+                    width: '100%'
                   }}
                 >
                   <AccordionSummary
@@ -1513,10 +1520,22 @@ const HospitalReportLandingPage = () => {
                       </Typography>
                     </Box>
                   </AccordionSummary>
-                  <AccordionDetails sx={{ 
-                    padding: { xs: 2, sm: 3 },
-                    borderTop: '1px solid #ffe0b2'
-                  }}>
+                    <AccordionDetails sx={{ 
+                      padding: { xs: 1, sm: 3 }, // Reduced padding on mobile
+                      borderTop: '1px solid #ffe0b2',
+                      '& .MuiFormControl-root': { // Target form controls within
+                        width: '100%', // Ensure inputs take full width
+                        maxWidth: '100%'
+                      },
+                      '& .MuiBox-root': { // Target Box components within
+                        width: '100%',
+                        maxWidth: '100%'
+                      },
+                      '& .MuiGrid-root': { // Target Grid components within
+                        width: '100%',
+                        margin: 0
+                      }
+                    }}>
                       {renderSectionComponent(section)}
                     </AccordionDetails>
                 </Accordion>
