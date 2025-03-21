@@ -322,7 +322,6 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
     
     // Filter category option combos by this category combo ID
     const relevantCocs = coc.filter(c => c.categoryCombo?.id === ccId);
-    console.log('relevantCocs', relevantCocs);
     
     // If we have category options but they don't follow the expected comma format
     if (relevantCocs.length > 0) {
@@ -1029,20 +1028,19 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
       variant: dataElement.formStyles?.variant || 'outlined',
       size: dataElement.formStyles?.fieldSize || 'small',
       label: dataElement.shortName,
-      placeholder: dataElement.formStyles?.placeholder || `Enter ${dataElement.shortName || dataElement.name}`,
+      placeholder: dataElement.formStyles?.placeholder || `Enter here`,
       type: getInputType(dataElementId),
       value: currentValue,
       onChange: handleInputChange(dataElementId, cocId),
       onBlur: handleBlur(dataElementId, cocId),
       error: hasError,
-      helperText: getHelperText(),
+      //helperText: getHelperText(),
       disabled: readOnly || isSaving,
       required: dataElement.validationRules?.required,
       sx: { 
         bgcolor: 'white',
         ...(isMobile && { width: '100%' })
       },
-      // Replace InputProps with slotProps for MUI v7
       slotProps: {
         input: {
           ...getInputProps(dataElementId),
@@ -1062,23 +1060,17 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
           justifyContent: 'space-between',
           mt: 0.5
         }}>
-          {getHelperText() && (
+          {(hasError || statuses[dataElementId]?.[cocId] === FieldStatus.WARNING) && (
             <Typography variant="caption" color={hasError ? "error" : "text.secondary"}>
               {getHelperText()}
             </Typography>
           )}
-          
-          {!isSaving && getStatusIcon(dataElement, cocId) && (
-            <Box sx={{ ml: 'auto' }}>
-              {getStatusIcon(dataElement, cocId)}
-            </Box>
-          )}
-          
+          {/*
           {isSaving && (
             <Box sx={{ ml: 'auto' }}>
               <CircularProgress size={16} />
             </Box>
-          )}
+          )}*/}
         </Box>
       </Box>
     );
@@ -1087,7 +1079,6 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
   // Render a mobile-optimized version of the matrix table
   const renderMobileDisaggregatedTable = (dataElementId: string) => {
     const matrix = matrices[dataElementId];
-    const dataElement = q.find(de => de.uid === dataElementId);
     
     if (!matrix || matrix.rows.length === 0 || matrix.columns.length === 0) {
       return (
@@ -1255,7 +1246,7 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
           sx={{ 
-            p: { xs: 2, sm: 4 },  // Less padding on mobile
+            p: { xs: 2, sm: 4 },
             borderRadius: 2, 
             boxShadow: 3,  
             mb: 4,
@@ -1264,11 +1255,24 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
           }}
         >
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            {/* Left side: Title and expand/collapse */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <IconButton 
+                onClick={() => toggleComponentCollapse(dataElementId)}
+                aria-label={isComponentCollapsed[dataElementId] ? "Expand" : "Collapse"}
+                size="small"
+                sx={{ mr: 1 }}
+              >
+                {isComponentCollapsed[dataElementId] ? <ExpandMoreIcon /> : <ExpandLessIcon />}
+              </IconButton>
+              
               <Typography variant="h6" sx={{ fontWeight: 500 }}>
                 {dataElement.name}
               </Typography>
-              
+            </Box>
+            
+            {/* Right side: Status chips and delete button */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               {hasAllSubmitted && (
                 <Chip 
                   icon={<CheckCircleIcon />} 
@@ -1285,23 +1289,13 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
                   size="small" 
                 />
               )}
-            </Box>
-            
-            {/* Toggle collapse/expand and remove buttons */}
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <IconButton 
-                onClick={() => toggleComponentCollapse(dataElementId)}
-                aria-label={isComponentCollapsed[dataElementId] ? "Expand" : "Collapse"}
-                size="small"
-              >
-                {isComponentCollapsed[dataElementId] ? <ExpandMoreIcon /> : <ExpandLessIcon />}
-              </IconButton>
               
               <IconButton 
                 color="error" 
                 size="small"
                 onClick={() => handleRemoveElement(dataElementId)}
                 disabled={autoSaving[dataElementId] && Object.values(autoSaving[dataElementId]).some(Boolean)}
+                sx={{ ml: { xs: 2, sm: 3 } }}
               >
                 <DeleteIcon />
               </IconButton>
@@ -1371,7 +1365,7 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
               color="primary"
               onClick={() => handleTemplateSelect(template.id)}
               size="small"
-              fullWidth={isMobile} // Optional: make buttons full width on mobile
+              fullWidth={isMobile}
             >
               {template.name}
             </Button>
@@ -1382,7 +1376,7 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
               startIcon={<SaveIcon />}
               onClick={handleSaveAsTemplate}
               size="small"
-              fullWidth={isMobile} // Optional: make button full width on mobile
+              fullWidth={isMobile}
             >
               Save as Template
             </Button>
