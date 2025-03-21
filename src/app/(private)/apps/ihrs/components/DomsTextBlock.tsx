@@ -288,8 +288,8 @@ const validateInput = (input: string | number): string => {
     
     return {
       //uuid: crypto.randomUUID(),
-      source: source || localStorage.getItem('selected-org') || '',
-      period: period || localStorage.getItem('selected-period') || '',
+      source: source || localStorage.getItem('ihrs-selected-org') || '',
+      period: period || localStorage.getItem('ihrs-selected-period') || '',
       dataElement: dataElementId,
       categoryOptionCombo: q.categoryCombo?.id || 'HllvX50cXC0',
       attributeOptionCombo: '',
@@ -302,13 +302,11 @@ const validateInput = (input: string | number): string => {
 
   // Handle saving data
   const handleSaveData = async () => {
-    // Skip save if there's validation error
     if (error) {
       setStatus(FieldStatus.ERROR);
       return;
     }
     
-    // Skip save if value is empty and not required
     if ((value === '' || value === null || value === undefined) && !validationRules.required) {
       setStatus(FieldStatus.IDLE);
       return;
@@ -316,29 +314,6 @@ const validateInput = (input: string | number): string => {
     
     try {
       setStatus(FieldStatus.SAVING);
-      /*
-      // Check for required source and period
-      const effectiveSource = source || localStorage.getItem('selected-org') || '';
-      const effectivePeriod = period || localStorage.getItem('selected-period') || '';
-      
-      if (!effectiveSource || !effectivePeriod) {
-        throw new Error('Missing required source ID or period');
-      }
-      
-      // Prepare payload
-      const valuePayload = preparePayload();
-      
-      // Update local values
-      const updatedValues = [
-        ...(existingValues || []).filter(v => v.dataElement !== dataElementId),
-        valuePayload
-      ];
-      
-      // Notify parent component of values update
-      if (onValuesUpdate) {
-        onValuesUpdate(updatedValues);
-      }
-      */
       
       // Try to save to server
       if (onSubmit) {
@@ -346,10 +321,13 @@ const validateInput = (input: string | number): string => {
           const stringifiedValue = 
             typeof value === 'object' ? JSON.stringify(value) : 
             value !== null && value !== undefined ? String(value) : '';
-          await onSubmit(stringifiedValue, dataElementId, 'HllvX50cXC0');
-
-          setSubmitted(true);
-          setStatus(FieldStatus.SAVED);
+            
+          const result = await onSubmit(stringifiedValue, 'HllvX50cXC0');
+  
+          if (result.success) {
+            setSubmitted(true);
+            setStatus(FieldStatus.SAVED);
+          }
         } catch (serverError) {
           console.error('Error saving to server, keeping in IndexedDB for later sync:', serverError);
           setStatus(FieldStatus.WARNING);

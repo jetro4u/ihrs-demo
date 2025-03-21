@@ -296,9 +296,14 @@ const TemplateMenuObjectForm: React.FC<TemplateMenuObjectFormProps> = ({
   // Handle submission for a single element block
   const handleBlockSubmit = async (elementKey) => {
     if (!isFormValid(elementKey)) {
-      alert(`Please fill all fields for ${getElementLabel(elementKey)}`);
+      setAlertInfo({
+        open: true,
+        message: `Please fill all fields for ${getElementLabel(elementKey)}`,
+        severity: 'error'
+      });
       return;
     }
+    
     setLoading(true);
     
     try {
@@ -313,67 +318,45 @@ const TemplateMenuObjectForm: React.FC<TemplateMenuObjectFormProps> = ({
         throw new Error(`Element ${elementKey} not found in metadata`);
       }
       
-      /* Use values from props, falling back to localStorage if needed
-      const effectiveSourceId = source || localStorage.getItem('ihrs-selected-org') || '';
-      const effectivePeriod = period || localStorage.getItem('ihrs-selected-period') || '';
-      const effectiveDataSetId = dataSet || localStorage.getItem('ihrs-selected-dataset') || '';
-      
-      if (!effectiveSourceId || !effectivePeriod) {
-        throw new Error('Missing required source ID or period');
-      }
-      
-      // Prepare the data for saving
-      const recordData = {
-        uuid: crypto.randomUUID(),
-        sourceId: effectiveSourceId,
-        periodId: effectivePeriod,
-        dataElementId: elementOption.uid,
-        dataSetId: effectiveDataSetId,
-        data: JSON.stringify(data[elementKey]),
-        date: new Date().toISOString(),
-        savedBy: localStorage.getItem('userId') || 'unknown',
-        created: new Date().toISOString(),
-        lastUpdated: new Date().toISOString()
-      };
-  
-      // First filter out any existing records for this element
-      const filteredRecords = submittedRecords.filter(
-        r => r.dataElementId !== elementOption.uid
-      );
-      
-      // Then add the new record
-      const updatedRecords = [...filteredRecords, recordData];
-      
-      // Update local state
-      setSubmittedRecords(updatedRecords);
-      
-      // Notify parent component of records update
-      if (onRecordsUpdate) {
-        onRecordsUpdate(updatedRecords);
-      }
-        */
-      
-      // Then try to save to server
+      // Then try to save via parent component's onSubmit handler
       if (onSubmit) {
         try {
-          await onSubmit(data[elementKey], elementOption.uid, 'HllvX50cXC0');
+          // Pass data object, data element ID, and attribute option combo
+          const result = await onSubmit(data[elementKey], elementOption.uid, 'HllvX50cXC0');
           
-          // Mark as successfully submitted
-          if (!submittedElements.includes(elementKey)) {
-            setSubmittedElements(prev => [...prev, elementKey]);
+          if (result.success) {
+            if (!submittedElements.includes(elementKey)) {
+              setSubmittedElements(prev => [...prev, elementKey]);
+            }
+            
+            setAlertInfo({
+              open: true,
+              message: `${getElementLabel(elementKey)} data submitted successfully!`,
+              severity: 'success'
+            });
           }
-          
-          alert(`${getElementLabel(elementKey)} data submitted successfully!`);
         } catch (error) {
-          console.error('Error saving to server, keeping in IndexedDB for later sync:', error);
-          alert(`${getElementLabel(elementKey)} data could not be sent to server and has been saved locally. It will be synchronized when connection is restored.`);
+          console.error('Error saving to server, data has been stored locally for later sync:', error);
+          setAlertInfo({
+            open: true,
+            message: `${getElementLabel(elementKey)} data could not be sent to server and has been saved locally for later synchronization.`,
+            severity: 'warning'
+          });
         }
       } else {
-        alert(`${getElementLabel(elementKey)} data saved locally.`);
+        setAlertInfo({
+          open: true,
+          message: `${getElementLabel(elementKey)} data saved locally.`,
+          severity: 'info'
+        });
       }
     } catch (error) {
       console.error('Error saving data:', error);
-      alert(`Error saving ${elementKey} data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setAlertInfo({
+        open: true,
+        message: `Error saving ${elementKey} data: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        severity: 'error'
+      });
     } finally {
       setSavingBlocks(prev => ({ ...prev, [elementKey]: false }));
       setLoading(false);

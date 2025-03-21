@@ -307,7 +307,7 @@ const TextFieldMatrixBlock: FC<TextFieldMatrixBlockProps> = ({
     if ((currentValue === '' || currentValue === null || currentValue === undefined) && !validationRules.required) {
       const newStatuses = { ...statuses, [cocId]: FieldStatus.IDLE };
       setStatuses(newStatuses);
-
+  
       return;
     }
     
@@ -319,6 +319,7 @@ const TextFieldMatrixBlock: FC<TextFieldMatrixBlockProps> = ({
       if (onSubmit) {
         try {
           const response = await onSubmit(currentValue, dataElementId, cocId);
+          
           if (response.success) {
             // Create new arrays/objects instead of modifying existing ones
             const newSubmittedCombos = [...submittedCombos.filter(id => id !== cocId), cocId];
@@ -355,7 +356,6 @@ const TextFieldMatrixBlock: FC<TextFieldMatrixBlockProps> = ({
       setErrors(newErrors);
     }
   };
-
   // Handle input change for a specific cell
   const handleInputChange = (cocId: string) => (event: ChangeEvent<HTMLInputElement>) => {
     const newValue = event.target.value;

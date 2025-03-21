@@ -9,9 +9,9 @@ const RECORD_FORMBLOCK = ['TemplateMenuObjectForm'];
    * @param {Object} params - Parameters to determine storage type
    * @returns {string} - Either 'dataValueStore' or 'dataRecordStore'
    */
-const determineStorageType = ({
-  dataSets,
-  datasetId,
+export const determineStorageType = ({
+  dataSet,
+  //datasetId,
   sectionId,
   dataElement,
   formBlockType,
@@ -19,10 +19,10 @@ const determineStorageType = ({
   data
 }) => {
   console.log('Determining storage type with params:', {
-    datasetId, sectionId, dataElement, formBlockType, componentName, data
+    dataSet, sectionId, dataElement, formBlockType, componentName, data
   });
   
-  const selectedDataset = dataSets.find(ds => ds.uid === datasetId);
+  //const selectedDataset = dataSet.find(ds => ds.uid === datasetId);
   
   // If data has explicit metrics, it's a record
   if (data && data.metrics && Object.keys(data.metrics).length > 0) {
@@ -31,7 +31,7 @@ const determineStorageType = ({
   }
   
   // If no dataset found, rely on component name or formBlock
-  if (!selectedDataset) {
+  if (!dataSet) {
     if (VALUE_COMPONENTS.includes(componentName)) return 'dataValueStore';
     if (RECORD_COMPONENTS.includes(componentName)) return 'dataRecordStore';
     if (VALUE_FORMBLOCK.includes(formBlockType)) return 'dataValueStore';
@@ -42,8 +42,8 @@ const determineStorageType = ({
   }
   
   // Case 3 & 4: Section exists, check its formBlock
-  if (sectionId && selectedDataset.sections) {
-    const section = selectedDataset.sections.find(s => s.id === sectionId);
+  if (sectionId && dataSet.sections) {
+    const section = dataSet.sections.find(s => s.id === sectionId);
     
     if (section) {
       // If section has a formBlock defined
@@ -64,11 +64,11 @@ const determineStorageType = ({
   }
   
   // Case 1 & 2: No section defined or section not found
-  if (!selectedDataset.sections || selectedDataset.sections.length === 0) {
+  if (!dataSet.sections || dataSet.sections.length === 0) {
     // Check if dataset has a formBlock
-    if (selectedDataset.formBlock) {
-      if (VALUE_FORMBLOCK.includes(selectedDataset.formBlock)) return 'dataValueStore';
-      if (RECORD_FORMBLOCK.includes(selectedDataset.formBlock)) return 'dataRecordStore';
+    if (dataSet.formBlock) {
+      if (VALUE_FORMBLOCK.includes(dataSet.formBlock)) return 'dataValueStore';
+      if (RECORD_FORMBLOCK.includes(dataSet.formBlock)) return 'dataRecordStore';
     } else {
       // Case 1: Single section with mixed types (no formBlock)
       if (VALUE_COMPONENTS.includes(componentName)) return 'dataValueStore';

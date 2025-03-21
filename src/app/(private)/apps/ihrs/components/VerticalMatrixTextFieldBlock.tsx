@@ -473,7 +473,7 @@ const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
         } catch (serverError) {
           console.error('Error saving to server, keeping in IndexedDB for later sync:', serverError);
           const newStatuses = { ...statuses, [cocId]: FieldStatus.WARNING };
-          const newErrors = { ...errors, [cocId]: 'Saved locally, will sync later' };
+          const newErrors = { ...errors, [cocId]: 'handleSaveData - Saved locally, will sync later' };
           
           setStatuses(newStatuses);
           setErrors(newErrors);

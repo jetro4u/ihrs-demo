@@ -123,11 +123,11 @@ export interface Category {
 }
   
 export interface CategoryCombo {
-	code: string;
 	name: string;
+	code?: string;
 	dataDimensionType: string;
 	id: string;
-	categoryOptionCombos?: ID[];
+	categoryOptionCombos: Partial<CategoryOptionCombo>[];
 	isDefault?: boolean;
 }
   
@@ -135,7 +135,7 @@ export interface CategoryOptionCombo {
 	name: string;
 	categoryCombo: ID;
 	sortOrder: number;
-	categoryOptions: ID[];
+	categoryOptions: Partial<CategoryOption>[];
 	id: string;
 }
 export type DataElementGroupSet = {
@@ -387,7 +387,7 @@ export interface DataSet {
 	name: string;
   access?: Access
   aggregationType: AggregationType
-  categoryCombo: ID
+  categoryCombo: CategoryCombo;
   compulsoryDataElementOperands?: DataElementOperand[]
   compulsoryFieldsCompleteOnly?: boolean
   dataEntryForm?: DataEntryForm
@@ -810,7 +810,10 @@ export interface DataRecordPayload {
 	source: string;
 	period: string;
 	dataElement: string;
-	attributeOptionCombo: string;
+  attribute?: {
+    combo: CategoryCombo["id"],
+    options: CategoryOption["id"][]
+  },
 	data: Record<string, any>;
 	date: Date;
 	comment?: string | null;
@@ -828,7 +831,10 @@ export interface DataValuePayload {
 	period: string;
 	dataElement: string;
 	categoryOptionCombo: string;
-	attributeOptionCombo: string;
+  attribute?: {
+    combo: CategoryCombo["id"],
+    options: CategoryOption["id"][]
+  },
 	value: string;
 	date: Date;
     comment?: string

@@ -749,58 +749,76 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
         submittedCombos[dataElementId] || []
       );
       
-      // Prepare payload
-      const valuePayload = preparePayload(dataElementId, cocId, currentValue);
-      
-      // Update local values
-      const updatedValues = [
-        ...(existingValues || []).filter(v => !(v.dataElement === dataElementId && v.categoryOptionCombo === cocId)),
-        valuePayload
-      ];
-      
-      // Notify parent component
-      if (onValuesUpdate) {
-        onValuesUpdate(updatedValues);
-      }
-      
       // Try to save to server
       if (onSubmit) {
-        const response = await onSubmit(currentValue, dataElementId, cocId);
-        if (response.success) {
-          const newSubmittedCombos = {
-            ...submittedCombos,
-            [dataElementId]: [
-              ...(submittedCombos[dataElementId] || []).filter(id => id !== cocId),
-              cocId
-            ]
-          };
+        try {
+          const response = await onSubmit(currentValue, dataElementId, cocId);
           
+          if (response.success) {
+            const newSubmittedCombos = {
+              ...submittedCombos,
+              [dataElementId]: [
+                ...(submittedCombos[dataElementId] || []).filter(id => id !== cocId),
+                cocId
+              ]
+            };
+            
+            const newStatuses = {
+              ...statuses,
+              [dataElementId]: {
+                ...statuses[dataElementId],
+                [cocId]: FieldStatus.SAVED
+              }
+            };
+            
+            setSubmittedCombos(newSubmittedCombos);
+            setStatuses(newStatuses);
+            
+            // Filter category option combos by this category combo ID first
+            const relevantCombos = coc.filter(c => c.categoryCombo?.id === ccId);
+            if (newSubmittedCombos[dataElementId].length === relevantCombos.length) {
+              setSubmittedElements(prev => 
+                prev.includes(dataElementId) ? prev : [...prev, dataElementId]
+              );
+            }
+            
+            // Save to session storage
+            saveToSessionStorage(
+              dataElementId, 
+              values[dataElementId] || {}, 
+              newStatuses[dataElementId] || {}, 
+              errors[dataElementId] || {}, 
+              newSubmittedCombos[dataElementId] || []
+            );
+          }
+        } catch (error) {
+          console.error('Error saving to server, keeping in IndexedDB for later sync:', error);
           const newStatuses = {
             ...statuses,
             [dataElementId]: {
               ...statuses[dataElementId],
-              [cocId]: FieldStatus.SAVED
+              [cocId]: FieldStatus.WARNING
             }
           };
           
-          setSubmittedCombos(newSubmittedCombos);
+          const newErrors = {
+            ...errors,
+            [dataElementId]: {
+              ...errors[dataElementId],
+              [cocId]: 'Saved locally, will sync later'
+            }
+          };
+          
           setStatuses(newStatuses);
+          setErrors(newErrors);
           
-          // Filter category option combos by this category combo ID first
-          const relevantCombos = coc.filter(c => c.categoryCombo?.id === ccId);
-          if (newSubmittedCombos[dataElementId].length === relevantCombos.length) {
-            setSubmittedElements(prev => 
-              prev.includes(dataElementId) ? prev : [...prev, dataElementId]
-            );
-          }
-          
-          // Save to session storage
+          // Save error state to session storage
           saveToSessionStorage(
             dataElementId, 
             values[dataElementId] || {}, 
             newStatuses[dataElementId] || {}, 
-            errors[dataElementId] || {}, 
-            newSubmittedCombos[dataElementId] || []
+            newErrors[dataElementId] || {}, 
+            submittedCombos[dataElementId] || []
           );
         }
       }

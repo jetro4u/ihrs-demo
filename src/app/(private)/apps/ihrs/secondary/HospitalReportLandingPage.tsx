@@ -51,8 +51,10 @@ import TextFieldMatrixBlock from '../components/TextFieldMatrixBlock';
 import { PDFViewer } from '@react-pdf/renderer';
 import HospitalReportPDF from '../components/HospitalReportPDF';
 import metadata from '../metadata.json';
-import { initDB, storeDataRecord, storeDataValue, getDataValues, getDataRecords } from '../../../../../services/indexedDB';
-import { CompleteDatasetPayload, CategoryOptionCombo, DataRecordPayload, DataValuePayload, StoredDataRecord, StoredDataValue, DataElement } from '../types';
+import { initDB, storeDataRecord, storeDataValue, getDataValues, getDataRecords, storeFailedDataRecord, storeFailedDataValue, retryAllFailedData } from '../../../../../services/indexedDB';
+import { CategoryCombo,CompleteDatasetPayload, CategoryOptionCombo, DataRecordPayload, DataValuePayload, StoredDataRecord, StoredDataValue, DataElement } from '../types';
+import { submitToServer } from '../utils/apiService';
+import { determineStorageType } from '../utils/determineStorageType';
 
 // Styled components
 const FormPaper = styled(Paper)(({ theme }) => ({
@@ -154,7 +156,6 @@ const HospitalReportLandingPage = () => {
     period: '',
     dataElement: '',
     categoryOptionCombo: '',
-    attributeOptionCombo: '',
     value: '',
     date: new Date(),
     comment: null,
@@ -165,7 +166,6 @@ const HospitalReportLandingPage = () => {
     source: '',
     period: '',
     dataElement: '',
-    attributeOptionCombo: '',
     data: {},
     date: new Date(),
     comment: null,
@@ -175,9 +175,8 @@ const HospitalReportLandingPage = () => {
   const orgs = metadata?.organisations || [];
   const organizations = orgs.filter(org => org.level === 5);
   const coc = metadata?.categoryOptionCombos || [];
-
-  // Datasets from metadata
   const datasets = metadata?.dataSets || [];
+
   const groupDataElementsBySection = () => {
     if (!submittedValues.length && !submittedRecords.length) {
       console.log('No data to group');
@@ -260,6 +259,54 @@ const HospitalReportLandingPage = () => {
       
     return { mainSectionData, dynamicSectionData };
   };
+
+  // Add a function to automatically retry failed submissions
+  const retryFailedSubmissions = async () => {
+    setLoading(true);
+    try {
+      // Get all failed records and values
+      const result = await retryAllFailedData();
+      
+      if (result.records > 0 || result.values > 0) {
+        setAlertInfo({
+          open: true,
+          message: `Successfully resubmitted ${result.records} records and ${result.values} values.`,
+          severity: 'success'
+        });
+      } else {
+        setAlertInfo({
+          open: true,
+          message: 'No failed submissions were resubmitted successfully.',
+          severity: 'info'
+        });
+      }
+    } catch (error) {
+      console.error('Error retrying failed submissions:', error);
+      setAlertInfo({
+        open: true,
+        message: `Error retrying failed submissions: ${error.message}`,
+        severity: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Add this useEffect to set up periodic retries of failed submissions
+  useEffect(() => {
+    if (!dbInitialized) return;
+    
+    // Perform an initial retry when the component mounts
+    retryFailedSubmissions();
+    
+    // Set up a periodic retry every 5 minutes
+    const retryInterval = setInterval(retryFailedSubmissions, 5 * 60 * 1000);
+    
+    // Clear the interval when the component unmounts
+    return () => {
+      clearInterval(retryInterval);
+    };
+  }, [dbInitialized]);
 
   useEffect(() => {
     const setupDb = async () => {
@@ -404,20 +451,6 @@ const HospitalReportLandingPage = () => {
       setFilteredDataElements(filtered);
     }
   }, [completeDatasetInfo.dataSet, metadata?.dataElements]);
-  
-  useEffect(() => {
-    // Restore submitted values from localStorage if available
-    const savedRecords = localStorage.getItem('ihrs-submitted-records');
-    if (savedRecords && submittedRecords.length === 0) {
-      try {
-        const parsedRecords = JSON.parse(savedRecords);
-        setSubmittedRecords(parsedRecords);
-        console.log("Restored records from localStorage:", parsedRecords);
-      } catch (e) {
-        console.error("Error parsing saved values:", e);
-      }
-    }
-  }, []);
 
   useEffect(() => {
     // Event listener for tab close/refresh
@@ -538,7 +571,6 @@ const HospitalReportLandingPage = () => {
       element.section && // Check if section exists
       element.section.name === sectionName
     );
-    console.log("elementsForSection", elementsForSection)
   
     // Optionally sort by a display order if available (using sectionDataElementOrder, fallback to 0)
     return elementsForSection.sort((a, b) => (a.section.deOrder || 0) - (b.section.deOrder || 0));
@@ -560,6 +592,27 @@ const HospitalReportLandingPage = () => {
     }));
   };
 
+  // Update the submitToServerWithRetry function
+  const submitToServerWithRetry = async (payload, type) => {
+    try {
+      const result = await submitToServer(payload, type);
+      return { success: true, data: result };
+    } catch (error) {
+      console.error(`Failed to submit ${type} to server:`, error);
+      // Store the failed submission in appropriate store for later retry
+      try {
+        if (type === 'record') {
+          await storeFailedDataRecord(payload);
+        } else if (type === 'value') {
+          await storeFailedDataValue(payload);
+        }
+      } catch (storageError) {
+        console.error(`Failed to store failed ${type} submission:`, storageError);
+      }
+      throw new Error(`Server submission failed: ${error.message}`);
+    }
+  };
+
   /**
   * Handles form block submission and routes to appropriate storage
   * @param {string | Record<string, any>} data - The data submitted from the form block
@@ -569,134 +622,109 @@ const HospitalReportLandingPage = () => {
   * @param {string} attributeOptionCombo - The ID of the attribute option combo (for value storage)
   * @param {string|null} sectionId - The ID of the section containing the form block
   */
-  const handleFormBlockSubmit = async (data: string | Record<string, any>, formBlockType: string, dataElement: string, categoryOptionCombo: string, attributeOptionCombo?: string, sectionId?: string): Promise<{ success: boolean }> => {
+  const handleFormBlockSubmit = async (
+    data: string | Record<string, any>, 
+    formBlockType: string, 
+    dataElement: string, 
+    categoryOptionCombo: string, 
+    sectionId?: string
+  ): Promise<{ success: boolean }> => {
     console.log('Form block submit:', {  
-        formBlockType, 
-        dataElement, 
-        sectionId, 
-        data 
-      });
+      formBlockType, 
+      dataElement,
+      categoryOptionCombo, 
+      sectionId, 
+      data 
+    });
+    
+    if (!data) {
+      console.error('No data provided to handleFormBlockSubmit');
+      return { success: false };
+    }
+    
+    // Get the data element details to access its componentName
+    const dataElementDetails = metadata.dataElements?.find(el => el.uid === dataElement);
+    const componentName = dataElementDetails?.componentName || '';
+    const selectedDataset = datasets.find(ds => ds.uid === completeDatasetInfo.dataSet);
+    console.log('dataElementDetails', dataElementDetails)
+    console.log('componentName', componentName)
+    console.log('selectedDataset', selectedDataset)
+    
+    // Determine storage type
+    const storageType = determineStorageType({
+      dataSet: selectedDataset,
+      //datasetId: completeDatasetInfo.dataSet,
+      sectionId,
+      dataElement,
+      formBlockType,
+      componentName,
+      data
+    });
+    
+    console.log(`Storage decision for element ${dataElement}: ${storageType}`);
+    
+    try {
+      setLoading(true);
       
-      if (!data) {
-        console.error('No data provided to handleFormBlockSubmit');
-        return { success: false };
-      }
-      
-      // Get the data element details to access its componentName
-      const dataElementDetails = metadata.dataElements?.find(el => el.uid === dataElement);
-      const componentName = dataElementDetails?.componentName || '';
-      const selectedDataset = datasets.find(ds => ds.uid === completeDatasetInfo.dataSet);
-      
-      // Determine storage type
-      const storageType = determineStorageType({
-        dataSets: selectedDataset,
-        datasetId: completeDatasetInfo.dataSet,
-        sectionId,
-        dataElement,
-        formBlockType,
-        componentName,
-        data
-      });
-      
-      console.log(`Storage decision for element ${dataElement}: ${storageType}`);
-      
-      try {
-        setLoading(true);
+      if (storageType === 'dataRecordStore') {
+        const recordPayload = {
+          source: completeDatasetInfo.source,
+          period: completeDatasetInfo.period,
+          dataElement: dataElement,
+          data: data as Record<string, any>,
+          date: new Date(),
+          comment: null,
+          followup: false
+        };
         
-        if (storageType === 'dataRecordStore') {
-          // Create data record payload
-          const recordPayload = {
-            source: completeDatasetInfo.source,
-            period: completeDatasetInfo.period,
-            dataElement: dataElement,
-            attributeOptionCombo: attributeOptionCombo || null,
-            data: data as Record<string, any>,
-            date: new Date(),
-            comment: null,
-            followup: false
-          };
-          
-          console.log('Saving as record:', recordPayload);
-          const result = await handleSaveRecord(recordPayload);
-          
-          if (result.success) {
-            console.log('Record saved successfully');
-            setAlertInfo({
-              open: true,
-              message: 'Data saved successfully',
-              severity: 'success'
-            });
-          } else {
-            console.error('Failed to save record');
-            setAlertInfo({
-              open: true,
-              message: 'Failed to save data',
-              severity: 'error'
-            });
+        console.log('Saving as record:', recordPayload);
+        const result = await handleSaveRecord(recordPayload);
+        
+        return result;
+      } else {
+        // Create data value payload
+        let valueToStore = '';
+        
+        if (typeof data === 'object') {
+          // For objects that go into value store, stringify them
+          try {
+            valueToStore = JSON.stringify(data);
+          } catch (e) {
+            console.error('Error stringifying object:', e);
+            valueToStore = String(data); // Fallback
           }
-  
-          return result;
         } else {
-          // Create data value payload
-          let valueToStore = '';
-          
-          if (typeof data === 'object') {
-            // For objects that go into value store, stringify them
-            try {
-              valueToStore = JSON.stringify(data);
-            } catch (e) {
-              console.error('Error stringifying object:', e);
-              valueToStore = String(data); // Fallback
-            }
-          } else {
-            valueToStore = String(data);
-          }
-          
-          const valuePayload = {
-            source: completeDatasetInfo.source,
-            period: completeDatasetInfo.period,
-            dataElement: dataElement,
-            categoryOptionCombo: categoryOptionCombo,
-            attributeOptionCombo: attributeOptionCombo || null,
-            value: valueToStore as string,
-            date: new Date(),
-            comment: null,
-            followup: false
-          };
-          
-          console.log('Saving as value:', valuePayload);
-          const result = await handleSaveValue(valuePayload);
-          
-          if (result.success) {
-            console.log('Value saved successfully');
-            setAlertInfo({
-              open: true,
-              message: 'Data saved successfully',
-              severity: 'success'
-            });
-          } else {
-            console.error('Failed to save value');
-            setAlertInfo({
-              open: true,
-              message: 'Failed to save data',
-              severity: 'error'
-            });
-          }
-  
-          return result;
+          valueToStore = String(data);
         }
-      } catch (error) {
-        console.error('Error in handleFormBlockSubmit:', error);
-        setAlertInfo({
-          open: true,
-          message: `Error saving data: ${error.message || 'Unknown error'}`,
-          severity: 'error'
-        });
-        return { success: false };
-      } finally {
-        setLoading(false);
+        
+        const valuePayload = {
+          source: completeDatasetInfo.source,
+          period: completeDatasetInfo.period,
+          dataElement: dataElement,
+          categoryOptionCombo: categoryOptionCombo,
+          value: valueToStore as string,
+          date: new Date(),
+          comment: null,
+          followup: false
+        };
+        
+        console.log('Saving as value:', valuePayload);
+        const result = await handleSaveValue(valuePayload);
+        
+        return result;
       }
-    };
+    } catch (error) {
+      console.error('Error in handleFormBlockSubmit:', error);
+      setAlertInfo({
+        open: true,
+        message: `Error saving data: ${error.message || 'Unknown error'}`,
+        severity: 'error'
+      });
+      return { success: false };
+    } finally {
+      setLoading(false);
+    }
+  };
   
   // Handler for saving data records
   const handleSaveRecord = async (record: DataRecordPayload): Promise<{ success: boolean }> => {
@@ -716,8 +744,18 @@ const HospitalReportLandingPage = () => {
       if (!record.period) record.period = completeDatasetInfo.period;
       
       console.log('Saving record to IndexedDB:', record);
+
+      // Try to submit to server first
+      try {
+        await submitToServerWithRetry(record, 'record');
+        // Server submission successful
+      } catch (serverError) {
+        // Server submission failed, but we'll continue to save locally
+        console.log('Server submission failed, storing locally:', serverError);
+        // Note: the failed record is already stored in the failed records store by submitToServerWithRetry
+      }
   
-      // Store in IndexedDB - will generate a uniqueKey internally
+      // Store in IndexedDB regardless of server response - will generate a uniqueKey internally
       const savedRecord: StoredDataRecord = await storeDataRecord(record);
   
       // Update state with the new record
@@ -725,9 +763,7 @@ const HospitalReportLandingPage = () => {
         const existingIndex = prevRecords.findIndex(r => 
           r.uniqueKey === savedRecord.uniqueKey || 
           (r.dataElement === savedRecord.dataElement && 
-          r.source === savedRecord.source && 
-          r.attributeOptionCombo === savedRecord.attributeOptionCombo)
-        );
+          r.source === savedRecord.source));
   
         if (existingIndex >= 0) {
           const updatedRecords = [...prevRecords];
@@ -780,7 +816,17 @@ const HospitalReportLandingPage = () => {
       
       console.log('Saving value to IndexedDB:', value);
       
-      // Store in IndexedDB - will generate a uniqueKey internally
+      // Try to submit to server first
+      try {
+        await submitToServerWithRetry(value, 'value');
+        // Server submission successful
+      } catch (serverError) {
+        // Server submission failed, but we'll continue to save locally
+        console.log('Server submission failed, storing locally:', serverError);
+        // Note: the failed value is already stored in the failed values store by submitToServerWithRetry
+      }
+      
+      // Store in IndexedDB regardless of server response - will generate a uniqueKey internally
       const savedValue: StoredDataValue = await storeDataValue(value);
       
       // Update state with the new value
@@ -789,9 +835,7 @@ const HospitalReportLandingPage = () => {
           v.uniqueKey === savedValue.uniqueKey || 
           (v.dataElement === savedValue.dataElement && 
           v.source === savedValue.source && 
-          v.categoryOptionCombo === savedValue.categoryOptionCombo &&
-          v.attributeOptionCombo === savedValue.attributeOptionCombo)
-        );
+          v.categoryOptionCombo === savedValue.categoryOptionCombo));
         
         if (existingIndex >= 0) {
           const updatedValues = [...prevValues];
@@ -826,7 +870,6 @@ const HospitalReportLandingPage = () => {
 
   const handleRecordsUpdate = (records: DataRecordPayload[]) => {
     setSubmittedRecords(records);
-    
   };
 
   // Handle values update from child components
@@ -834,7 +877,7 @@ const HospitalReportLandingPage = () => {
     setSubmittedValues(updatedValues);
   };
 
-// Update the loadDataFromIndexedDB function
+  // Update the loadDataFromIndexedDB function
   const loadDataFromIndexedDB = async () => {
     try {
       setLoading(true);
@@ -881,6 +924,7 @@ const HospitalReportLandingPage = () => {
       if (orgId !== completeDatasetInfo.source) {
         // Clear the submitted values
         setSubmittedRecords([]);
+        setSubmittedValues([]);
         
         // Optionally notify the user
         setAlertInfo({
@@ -895,10 +939,11 @@ const HospitalReportLandingPage = () => {
         ...prev,
         source: orgId
       }));
-      setDataRecord(prev => ({
-        ...prev,
-        source: orgId
-      }));
+    
+      // After updating the source, load data if period is already selected
+      if (completeDatasetInfo.period) {
+        loadDataFromIndexedDB();
+      }
       localStorage.setItem('ihrs-selected-org', orgId);
     };
   
@@ -911,7 +956,7 @@ const HospitalReportLandingPage = () => {
     if (dataSet !== completeDatasetInfo.dataSet) {
       // Clear the submitted values
       setSubmittedRecords([]);
-      localStorage.removeItem('ihrs-submitted-records');
+      setSubmittedValues([]);
       
       // Optionally notify the user
       setAlertInfo({
@@ -950,21 +995,6 @@ const HospitalReportLandingPage = () => {
       }));
     };
   
-    // Simulate storing in IndexedDB
-  const storeInIndexedDB = async (storeName: string, data: any) => {
-    return new Promise((resolve, reject) => {
-      try {
-        // In a real app, you would use actual IndexedDB
-        // This is just a simulation
-        const localStorageKey = `ihrs-${storeName}-${Date.now()}`;
-        localStorage.setItem(localStorageKey, JSON.stringify(data));
-        setTimeout(() => resolve(true), 500); // Simulate async operation
-      } catch (error) {
-        reject(error);
-      }
-    });
-  };
-  
     // Handle dataset submit
   const handleDatasetSubmit = async () => {
     setSubmitting(true);
@@ -980,7 +1010,7 @@ const HospitalReportLandingPage = () => {
       console.log('Submitting complete dataset:', payload);
       
       // Simulate API call to /api/completeDatasets
-      await storeInIndexedDB('completeDatasets', payload);
+    //  await storeInIndexedDB('completeDatasets', payload);
       
       setAlertInfo({
         open: true,
@@ -994,7 +1024,6 @@ const HospitalReportLandingPage = () => {
         dataSet: '',
         source: '',
         period: '',
-        attributeOptionCombo: '',
         date: new Date(),
         signatures: [],
         completed: false
@@ -1003,7 +1032,6 @@ const HospitalReportLandingPage = () => {
         source: '',
         period: '',
         dataElement: '',
-        attributeOptionCombo: '',
         data: {},
         date: new Date(),
         comment: null,
@@ -1093,6 +1121,7 @@ const HospitalReportLandingPage = () => {
     const selectedDataSet = localStorage.getItem('ihrs-selected-dataset') || '';
     const selectedPeriod = localStorage.getItem('ihrs-selected-period') || '';
     const filteredDataElements = getDataElementsBySection(selectedDataSet, section.name);
+    console.log("section.id", section.id)
     
     switch(section.formBlock) {
       case 'TemplateMenuObjectForm':
@@ -1102,7 +1131,7 @@ const HospitalReportLandingPage = () => {
             dataSet={selectedDataSet}
             period={selectedPeriod}
             source={selectedSource}
-            onSubmit={(data, dataElement) => handleFormBlockSubmit(data, 'TemplateMenuObjectForm', dataElement, '', section.id)}
+            onSubmit={(data, dataElement, categoryOptionCombo) => handleFormBlockSubmit(data, 'TemplateMenuObjectForm', dataElement, section.id)}
             templates={templates}
             existingRecords={submittedRecords}
             onRecordsUpdate={handleRecordsUpdate}
@@ -1134,8 +1163,8 @@ const HospitalReportLandingPage = () => {
                   dataSet={selectedDataSet}
                   period={selectedPeriod}
                   source={selectedSource}
-                  onSubmit={(data) => 
-                    handleFormBlockSubmit(data, 'DomsTextBlock', element.uid, '', section.id)}
+                  onSubmit={(data, categoryOptionCombo) => 
+                    handleFormBlockSubmit(data, 'DomsTextBlock', element.uid, categoryOptionCombo, section.id)}
                   existingValues={submittedValues}  
                   onValuesUpdate={handleValuesUpdate}
                 />
@@ -1164,28 +1193,7 @@ const HospitalReportLandingPage = () => {
             ))}
           </Box>
         );
-      
-      case 'TextFieldMatrixBlock':
-        return (
-          <Box>
-            {filteredDataElements.map(element => (
-              <Box key={element.uid} sx={{ mb: 2 }}>
-                <TextFieldMatrixBlock
-                  q={element}
-                  coc={getCategoryOptionCombos(element.categoryCombo.id)}
-                  dataSet={selectedDataSet}
-                  period={selectedPeriod}
-                  source={selectedSource}
-                  onSubmit={(data, categoryOptionCombo) => 
-                    handleFormBlockSubmit(data, 'TextFieldMatrixBlock', element.uid, categoryOptionCombo, section.id)}
-                  existingValues={submittedValues}
-                  onValuesUpdate={handleValuesUpdate}
-                />
-              </Box>
-            ))}
-          </Box>
-        );
-      
+        
       case 'TemplateMenuMatrixBlock':
           return (
             <TemplateMenuMatrixBlock
@@ -1758,7 +1766,7 @@ const HospitalReportLandingPage = () => {
       </HeaderAppBar>
       
       <Box sx={{ 
-        display: (collapsed || (!showStepper && (window.innerWidth < 600 || true))) ? 'none' : 'block',
+        display: (collapsed || !showStepper) ? 'none' : 'block',
         flexShrink: 0,
         transition: 'all 0.3s ease-in-out', 
         position: 'sticky',
@@ -1767,9 +1775,23 @@ const HospitalReportLandingPage = () => {
         zIndex: 1000,
         maxHeight: showStepper ? '200px' : '0px',  // Control height based on showStepper
         opacity: showStepper ? 1 : 0,  // Fade in/out with scroll
-        overflow: 'hidden'  // Hide overflow during transition
+        overflow: 'hidden',  // Hide overflow during transition
+        width: '100%'
       }}>
-        <Stepper activeStep={activeStep} sx={{ pt: 3, pb: 5 }} orientation="vertical">
+        <Stepper 
+          activeStep={activeStep} 
+          sx={{ 
+            pt: 2, 
+            pb: 2,
+            px: { xs: 1, sm: 2 },
+            overflowX: 'auto', // Allow horizontal scrolling if needed
+            '& .MuiStepConnector-line': {
+              minWidth: '20px' // Ensure connectors have minimum width
+            }
+          }} 
+          orientation="horizontal" // Change to horizontal orientation
+          alternativeLabel // Place labels below icons for better horizontal layout
+        >
           {steps.map((label) => (
             <Step key={label}>
               <StepLabel>{label}</StepLabel>

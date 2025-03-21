@@ -300,6 +300,8 @@
             "id": "bjDvmb4bfuf",
             "categoryOptionCombos": [
                 {
+					"name": "Default",
+					"sortOrder": 1,
                     "id": "HllvX50cXC0"
                 }
             ],
@@ -310,62 +312,62 @@
             "categoryOptionCombos": [
 				{
 					"name": "Female, 0-1 yr",
-					"cocOrder": 1,
+					"sortOrder": 1,
 					"id": "fXC4Y0bZIwd"
 				},
 				{
 					"name": "Female, 1-5 yrs",
-					"cocOrder": 2,
+					"sortOrder": 2,
 					"id": "JDWfbeUBzCL"
 				},
 				{
 					"name": "Female, 5-17 yrs",
-					"cocOrder": 3,
+					"sortOrder": 3,
 					"id": "cF0U7Xv7K0w"
 				},
 				{
 					"name": "Female, 18-59 yrs",
-					"cocOrder": 4,
+					"sortOrder": 4,
 					"id": "FmC1XjDHKX9"
 				},
 				{
 					"name": "Female, 60-69 yrs",
-					"cocOrder": 5,
+					"sortOrder": 5,
 					"id": "RCQ6KZ7bP4X"
 				},
 				{
 					"name": "Female, 70+ yrs",
-					"cocOrder": 6,
+					"sortOrder": 6,
 					"id": "aU6n0vXhXhn"
 				},
 				{
 					"name": "Male, 0-1 yr",
-					"cocOrder": 7,
+					"sortOrder": 7,
 					"id": "ugKICHeyfVw"
 				},
 				{
 					"name": "Male, 1-5 yrs",
-					"cocOrder": 8,
+					"sortOrder": 8,
 					"id": "RpDqxPOXfPN"
 				},
 				{
 					"name": "Male, 5-17 yrs",
-					"cocOrder": 9,
+					"sortOrder": 9,
 					"id": "CsrJm9D7GOe"
 				},
 				{
 					"name": "Male, 18-59 yrs",
-					"cocOrder": 10,
+					"sortOrder": 10,
 					"id": "XJGKy4xNK1u"
 				},
 				{
 					"name": "Male, 60-69 yrs",
-					"cocOrder": 11,
+					"sortOrder": 11,
 					"id": "Pq6Sz1auiSW"
 				},
 				{
 					"name": "Male, 70+ yrs",
-					"cocOrder": 12,
+					"sortOrder": 12,
 					"id": "YSvnek2xCIX"
 				}
             ],
@@ -377,17 +379,17 @@
             "categoryOptionCombos": [
 				{
 					"name": "Positive",
-					"cocOrder": 1,
+					"sortOrder": 1,
 					"id": "n5KfTDOxfEM"
 				},
 				{
 					"name": "Negative",
-					"cocOrder": 2,
+					"sortOrder": 2,
 					"id": "dfcd0ABSPvU"
 				},
 				{
 					"name": "Pending",
-					"cocOrder": 3,
+					"sortOrder": 3,
 					"id": "jMOLXVCPdtr"
 				}
             ],
@@ -399,22 +401,22 @@
             "categoryOptionCombos": [
 				{
 					"name": "Minor",
-					"cocOrder": 1,
+					"sortOrder": 1,
 					"id": "c4UYjBVrDSo"
 				},
 				{
 					"name": "Intermediary",
-					"cocOrder": 2,
+					"sortOrder": 2,
 					"id": "jy6bnztKXMO"
 				},
 				{
 					"name": "Major",
-					"cocOrder": 3,
+					"sortOrder": 3,
 					"id": "jncmV5hspXa"
 				},
 				{
 					"name": "Extramediary",
-					"cocOrder": 4,
+					"sortOrder": 4,
 					"id": "rlKKZwcE8P7"
 				}
             ],
