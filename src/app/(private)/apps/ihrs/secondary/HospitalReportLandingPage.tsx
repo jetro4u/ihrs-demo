@@ -1314,31 +1314,83 @@ const HospitalReportLandingPage = () => {
           </Typography>
           
           {/* Main Sections - Always Visible but collapsible */}
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+          <Box sx={{ 
+            mb: 5,
+            p: 3,
+            bgcolor: '#f8f9fa', 
+            borderRadius: 2,
+            border: '1px solid #e0e0e0'
+          }}>
+            <Typography 
+              variant="h6" 
+              gutterBottom 
+              sx={{ 
+                mb: 2,
+                pb: 1,
+                borderBottom: '2px solid #1976d2',
+                display: 'inline-block'
+              }}
+            >
               Required Information
             </Typography>
             
             {/* Render main sections dynamically from metadata */}
-            {mainSections.map(section => (
+            {mainSections.map((section, index) => (
               <Accordion 
                 key={section.id}
                 expanded={expandedSections[section.id] !== undefined ? expandedSections[section.id] : section.enabled} 
                 onChange={() => toggleSectionExpansion(section.id)}
-                sx={{ mb: 2 }}
+                sx={{ 
+                  mb: 2,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  '&.Mui-expanded': {
+                    border: '2px solid #1976d2',
+                    bgcolor: 'rgba(25, 118, 210, 0.03)'
+                  },
+                  '&:before': {
+                    display: 'none'
+                  }
+                }}
                 slotProps={{ transition: { unmountOnExit: true } }}
               >
                 <AccordionSummary
                   expandIcon={<ExpandMore />}
                   aria-controls={`section-${section.id}-content`}
                   id={`section-${section.id}-header`}
+                  sx={{
+                    bgcolor: '#e3f2fd',
+                    '&.Mui-expanded': {
+                      bgcolor: '#bbdefb'
+                    }
+                  }}
                 >
-                  <Typography variant="subtitle1">{section.name}</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Typography 
+                      variant="h6" 
+                      sx={{ 
+                        fontWeight: 600,
+                        color: '#0d47a1',
+                        mr: 1
+                      }}
+                    >
+                      {index + 1}.
+                    </Typography>
+                    <Typography 
+                      variant="subtitle1" 
+                      sx={{ 
+                        fontWeight: 600,
+                        fontSize: '1.1rem'
+                      }}
+                    >
+                      {section.name}
+                    </Typography>
+                  </Box>
                 </AccordionSummary>
                 <AccordionDetails sx={{ 
-                  padding: { xs: 1, sm: 2 },
+                  padding: { xs: 2, sm: 3 },
                   maxHeight: '70vh', // Limit height on small screens
-                  overflow: 'auto'   // Allow scrolling inside if needed
+                  overflow: 'auto',
+                  borderTop: '1px solid #e0e0e0'
                 }}>
                   {renderSectionComponent(section)}
                 </AccordionDetails>
@@ -1347,8 +1399,23 @@ const HospitalReportLandingPage = () => {
           </Box>
           
           {/* Dynamic Sections Selection */}
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="h6" gutterBottom>
+          <Box sx={{ 
+            mb: 5,
+            p: 3,
+            bgcolor: '#fffde7', 
+            borderRadius: 2,
+            border: '1px solid #e0e0e0' 
+          }}>
+            <Typography 
+              variant="h6" 
+              gutterBottom 
+              sx={{ 
+                mb: 2,
+                pb: 1,
+                borderBottom: '2px solid #ff9800',
+                display: 'inline-block'
+              }}
+            >
               Specialized Services
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -1375,24 +1442,81 @@ const HospitalReportLandingPage = () => {
           </Box>
           
           {/* Render sections for enabled dynamic services */}
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="h6" gutterBottom>
+          <Box sx={{ 
+            mb: 4,
+            p: 3,
+            bgcolor: '#fff8e1', 
+            borderRadius: 2,
+            border: '1px solid #ffe0b2'
+          }}>
+            <Typography 
+              variant="h6" 
+              gutterBottom
+              sx={{ 
+                mb: 2,
+                pb: 1,
+                borderBottom: '2px solid #ff9800',
+                display: 'inline-block'
+              }}
+            >
               Active Specialized Service Forms
             </Typography>
             
             {/* Dynamically render enabled dynamic sections */}
             {dynamicSections
               .filter(section => enabledDynamicSections[section.id])
-              .map(section => (
-                <Accordion key={section.id} sx={{ mb: 2 }}>
+              .map((section, index) => (
+                <Accordion 
+                  key={section.id} 
+                  sx={{ 
+                    mb: 2,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                    '&.Mui-expanded': {
+                      border: '2px solid #ff9800',
+                      bgcolor: 'rgba(255, 152, 0, 0.03)'
+                    },
+                    '&:before': {
+                      display: 'none'
+                    }
+                  }}
+                >
                   <AccordionSummary
                     expandIcon={<ExpandMore />}
                     aria-controls={`section-${section.id}-content`}
                     id={`section-${section.id}-header`}
+                    sx={{
+                      bgcolor: '#ffecb3',
+                      '&.Mui-expanded': {
+                        bgcolor: '#ffe082'
+                      }
+                    }}
                   >
-                    <Typography variant="subtitle1">{section.name}</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <Typography 
+                        variant="h6" 
+                        sx={{ 
+                          fontWeight: 600,
+                          color: '#e65100',
+                          mr: 1
+                        }}
+                      >
+                        S{index + 1}.
+                      </Typography>
+                      <Typography 
+                        variant="subtitle1" 
+                        sx={{ 
+                          fontWeight: 600,
+                          fontSize: '1.1rem'
+                        }}
+                      >
+                        {section.name}
+                      </Typography>
+                    </Box>
                   </AccordionSummary>
-                    <AccordionDetails sx={{ padding: { xs: 1, sm: 2 } }}>
+                  <AccordionDetails sx={{ 
+                    padding: { xs: 2, sm: 3 },
+                    borderTop: '1px solid #ffe0b2'
+                  }}>
                       {renderSectionComponent(section)}
                     </AccordionDetails>
                 </Accordion>
@@ -1420,7 +1544,7 @@ const HospitalReportLandingPage = () => {
             padding: 2,
             zIndex: 1050,
             boxShadow: '0px -2px 4px rgba(0,0,0,0.1)', // Add shadow for visual separation
-            maxWidth: 1100, // Match the container width
+            maxWidth: 1024, // Match the container width
             margin: '0 auto', // Center the buttons
             boxSizing: 'border-box'
           }}>
@@ -1737,7 +1861,7 @@ const HospitalReportLandingPage = () => {
       overflow: 'hidden', // Don't allow overflow at container level
       padding: { xs: 1, sm: 2 },
       boxSizing: 'border-box' // Ensure padding doesn't affect total width/height
-    }}>
+    }}>{/*
       <HeaderAppBar>
         <Toolbar sx={{ 
           display: 'flex', 
@@ -1763,7 +1887,7 @@ const HospitalReportLandingPage = () => {
             </DomsSvgIcon>
           </IconButton>
         </Toolbar>
-      </HeaderAppBar>
+      </HeaderAppBar>*/}
       
       <Box sx={{ 
         display: (collapsed || !showStepper) ? 'none' : 'block',
