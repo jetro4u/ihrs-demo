@@ -24,7 +24,7 @@ import {
   useMediaQuery, 
   useTheme 
 } from '@mui/material';
-import DomsSvgIcon from '../components/DomsSvgIcon';
+import DomsSvgIcon from './DomsSvgIcon';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
@@ -32,18 +32,8 @@ import ErrorIcon from '@mui/icons-material/Error';
 import WarningIcon from '@mui/icons-material/Warning';
 import SaveIcon from '@mui/icons-material/Save';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { openDB } from 'idb';
-import { DataElement, ValueType, CategoryOptionCombo } from '../types';
-import ObjectAutoCompleteSelect from '../components/ObjectAutoCompleteSelect';
-
-// Import the FieldStatus enum from DomsTextField
-export enum FieldStatus {
-  IDLE = 'idle',
-  SAVING = 'saving',
-  SAVED = 'saved',
-  ERROR = 'error',
-  WARNING = 'warning'
-}
+import { DataElement, ValueType, CategoryOptionCombo, DataValuePayload, FieldStatus } from '../types';
+import ObjectAutoCompleteSelect from './ObjectAutoCompleteSelect';
 
 // Helper types to manage aggregated data
 type CategoryMatrix = {
@@ -58,32 +48,14 @@ type Template = {
   data: Record<string, any>;
 };
 
-// Adapted from DomsTextField's DataValuePayload
-interface DataValuePayload {
-  uuid: string;
-  source: string;
-  period: string;
-  dataElement: string;
-  categoryOptionCombo: string;
-  attributeOptionCombo: string;
-  value: string;
-  comment: string;
-  followup: boolean;
-  date: Date;
-  storedBy: string;
-  created: string;
-  lastUpdated: string;
-  deleted: boolean;
-}
-
 // Main component props
-interface TemplateMenuVerticalMatrixProps {
+interface TemplateMenuMatrixBlockProps {
   q: DataElement[];
   coc: CategoryOptionCombo[];
   dataSet: string;
   period: string;
   source: string;
-  onSave?: (data: any) => Promise<{ success: boolean }>;
+  onSubmit?: (data: string, dataElement: string, categoryOptionCombo: string) => Promise<{ success: boolean }>;
   templates?: Template[];
   onNext?: () => void;
   onBack?: () => void;
@@ -96,13 +68,13 @@ interface TemplateMenuVerticalMatrixProps {
 
 const SESSION_STORAGE_KEY_PREFIX = 'matrix-field-';
 
-const TemplateMenuVerticalMatrix: FC<TemplateMenuVerticalMatrixProps> = ({
+const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
   q,
   coc,
   dataSet,
   period,
   source,
-  onSave,
+  onSubmit,
   templates: externalTemplates = [],
   onNext,
   onBack,
@@ -160,27 +132,7 @@ const TemplateMenuVerticalMatrix: FC<TemplateMenuVerticalMatrixProps> = ({
   const availableOptions = elementOptions.filter(
     (option) => !Object.prototype.hasOwnProperty.call(data, option.uid)
   );
-
-  // Initialize IndexedDB
-  useEffect(() => {
-    const initIndexedDB = async () => {
-      try {
-        await openDB('dataorb-db', 1, {
-          upgrade(db) {
-            if (!db.objectStoreNames.contains('dataValues')) {
-              db.createObjectStore('dataValues', { keyPath: 'uuid' });
-            }
-          },
-        });
-        console.log('IndexedDB initialized successfully');
-      } catch (error) {
-        console.error('Error initializing IndexedDB:', error);
-      }
-    };
-    
-    initIndexedDB();
-  }, []);
-
+  
   // Load from session storage
   const loadFromSessionStorage = (dataElementId: string) => {
     try {
@@ -735,20 +687,15 @@ const TemplateMenuVerticalMatrix: FC<TemplateMenuVerticalMatrixProps> = ({
       value !== null && value !== undefined ? String(value) : '';
     
     return {
-      uuid: crypto.randomUUID(),
-      source: source || localStorage.getItem('selected-org') || '',
-      period: period || localStorage.getItem('selected-period') || '',
+      source: source,
+      period: period,
       dataElement: dataElementId,
       categoryOptionCombo: cocId,
       attributeOptionCombo: '',
       value: stringifiedValue,
       comment: '',
       followup: false,
-      date: new Date(),
-      storedBy: localStorage.getItem('userId') || 'unknown',
-      created: new Date().toISOString(),
-      lastUpdated: new Date().toISOString(),
-      deleted: false
+      date: new Date()
     };
   };
   
@@ -817,8 +764,8 @@ const TemplateMenuVerticalMatrix: FC<TemplateMenuVerticalMatrixProps> = ({
       }
       
       // Try to save to server
-      if (onSave) {
-        const response = await onSave(valuePayload);
+      if (onSubmit) {
+        const response = await onSubmit(currentValue, dataElementId, cocId);
         if (response.success) {
           const newSubmittedCombos = {
             ...submittedCombos,
@@ -1036,8 +983,6 @@ const TemplateMenuVerticalMatrix: FC<TemplateMenuVerticalMatrixProps> = ({
 
   // Render a specific input field within the matrix
   const renderCellInputField = (dataElementId: string, cocId: string) => {
-    console.log('dataElementId', dataElementId)
-    console.log('cocId', cocId)
     const currentValue = values[dataElementId]?.[cocId] || '';
     const isSaving = statuses[dataElementId]?.[cocId] === FieldStatus.SAVING || autoSaving[dataElementId]?.[cocId];
     const hasError = !!errors[dataElementId]?.[cocId];
@@ -1197,7 +1142,6 @@ const TemplateMenuVerticalMatrix: FC<TemplateMenuVerticalMatrixProps> = ({
 
   // Render the complete matrix table for a specific data element
   const renderDisaggregatedTable = (dataElementId: string) => {
-    console.log('matrices', matrices)
     const matrix = matrices[dataElementId];
     
     // If no disaggregation is available, render a message
@@ -1444,8 +1388,6 @@ const TemplateMenuVerticalMatrix: FC<TemplateMenuVerticalMatrixProps> = ({
       
       <CardContent sx={{ 
         p: 3,
-      //  maxHeight: isMobile ? '70vh' : 'none',
-      //  overflow: isMobile ? 'auto' : 'visible',
         WebkitOverflowScrolling: 'touch'
       }}>
         {/* Data element selection dropdown */}
@@ -1515,4 +1457,4 @@ const TemplateMenuVerticalMatrix: FC<TemplateMenuVerticalMatrixProps> = ({
   );
 };
 
-export default TemplateMenuVerticalMatrix;
+export default TemplateMenuMatrixBlock;

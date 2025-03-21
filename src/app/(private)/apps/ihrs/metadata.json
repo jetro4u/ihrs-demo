@@ -1894,212 +1894,6 @@
 			"componentName": "DomsTextField"
 		},
 		{
-			"uid": "W3WCZnDlu45",
-			"name": "Total number of available bed days this month",
-			"shortName": "Available bed days",
-			"code": "DE_UTI_ABD",
-			"description": "Total number of available bed days this month",
-			"displayDescription": "Total number of available bed days this month",
-			"displayFormName": "Available Bed Days Form",
-			"displayName": "Total number of available bed days this month",
-			"displayShortName": "Available bed days",
-			"valueType": "INTEGER_ZERO_OR_POSITIVE",
-			"zeroIsSignificant": true,
-			"iconText": "material-outline:hotel",
-			"fieldType": "number",
-			"aggregationLevels": [1, 2, 3],
-			"aggregationType": "SUM",
-			"app": "IHRS",
-			"dataElementQuestionType": 1,
-			"dataSets": [
-			{
-				"id": "cTxL0iUYdG4"
-			}
-			],
-			"organisationTypes": [
-			"CDG5isZ83tF",
-			"vuFUzsSAcS0"
-			],
-			"dataElementGroups": {
-			"id": "hPquGTHUoxo",
-			"name": "Utilization of Service"
-			},
-			"categoryCombo": {
-			"id": "bjDvmb4bfuf"
-			},
-			"metrics": null,
-			"value": null,
-			"answered": false,
-			"disabled": false,
-			"optionSet": {},
-			"optionSetValue": false,
-			"queryMods": {
-			"allowFutureDates": false,
-			"skipValidation": false
-			},
-			"commentOptionSet": {},
-			"validationRules": {
-			"required": true,
-			"min": null,
-			"max": 100000,
-			"regex": null,
-			"errorMessage": "Please enter a positive number of bed days"
-			},
-			"visibility": {
-			"visible": true,
-			"dependsOn": null,
-			"conditions": []
-			},
-			"access": {
-			"read": true,
-			"write": true,
-			"delete": false,
-			"manage": false
-			},
-			"defaultValue": null,
-			"calculatedValue": {
-			"expression": null,
-			"dependsOn": []
-			},
-			"displayInReview": true,
-			"displayConditions": {
-			"type": "ALWAYS",
-			"expression": null,
-			"dependencies": []
-			},
-			"unitOfMeasurement": "days",
-			"valueTypeOptions": {
-			"allowedFileTypes": [],
-			"maxFileSize": 0
-			},
-			"legendSet": {},
-			"legendSets": [],
-			"section": {
-				"name": "Utilization of Service",
-				"sortOrder": 2,
-				"deOrder": 1
-			},
-			"formStyles": {
-			"fieldMask": "",
-			"helpText": "Calculate as (number of beds × days in month)",
-			"placeholder": "Enter available bed days",
-			"fieldSize": "medium",
-			"variant": "outlined",
-			"row": false,
-			"muiColor": "primary",
-			"color": "",
-			"icon": "material-outline:hotel",
-			"sx": {},
-			"minSelected": null,
-			"maxSelected": null
-			},
-			"sortOrder": 1,
-			"componentName": "DomsTextField"
-		},
-		{
-			"uid": "SWftYOWWqgI",
-			"name": "Total number of inpatient days this month",
-			"shortName": "Inpatient days",
-			"code": "DE_UTI_IPD",
-			"description": "Total number of inpatient days this month",
-			"displayDescription": "Total number of inpatient days this month",
-			"displayFormName": "Inpatient Days Form",
-			"displayName": "Total number of inpatient days this month",
-			"displayShortName": "Inpatient days",
-			"valueType": "INTEGER_ZERO_OR_POSITIVE",
-			"zeroIsSignificant": true,
-			"iconText": "material-outline:personal_injury",
-			"fieldType": "number",
-			"aggregationLevels": [1, 2, 3],
-			"aggregationType": "SUM",
-			"app": "IHRS",
-			"dataElementQuestionType": 1,
-			"dataSets": [
-			{
-				"id": "cTxL0iUYdG4"
-			}
-			],
-			"organisationTypes": [
-			"CDG5isZ83tF",
-			"vuFUzsSAcS0"
-			],
-			"dataElementGroups": {
-			"id": "hPquGTHUoxo",
-			"name": "Utilization of Service"
-			},
-			"categoryCombo": {
-			"id": "bjDvmb4bfuf"
-			},
-			"metrics": null,
-			"value": null,
-			"answered": false,
-			"disabled": false,
-			"optionSet": {},
-			"optionSetValue": false,
-			"queryMods": {
-			"allowFutureDates": false,
-			"skipValidation": false
-			},
-			"commentOptionSet": {},
-			"validationRules": {
-			"required": true,
-			"min": null,
-			"max": null,
-			"regex": null,
-			"errorMessage": "Please enter a positive number of inpatient days"
-			},
-			"visibility": {
-			"visible": true,
-			"dependsOn": null,
-			"conditions": []
-			},
-			"access": {
-			"read": true,
-			"write": true,
-			"delete": false,
-			"manage": false
-			},
-			"defaultValue": null,
-			"calculatedValue": {
-			"expression": null,
-			"dependsOn": []
-			},
-			"displayInReview": true,
-			"displayConditions": {
-			"type": "ALWAYS",
-			"expression": null,
-			"dependencies": []
-			},
-			"unitOfMeasurement": "days",
-			"valueTypeOptions": {
-			"allowedFileTypes": [],
-			"maxFileSize": 0
-			},
-			"legendSet": {},
-			"legendSets": [],
-			"section": {
-				"name": "Utilization of Service",
-				"sortOrder": 2,
-				"deOrder": 2
-			},
-			"formStyles": {
-			"fieldMask": "",
-			"helpText": "Sum of all days patients stayed in hospital this month",
-			"placeholder": "Enter inpatient days",
-			"fieldSize": "medium",
-			"variant": "outlined",
-			"row": false,
-			"muiColor": "primary",
-			"color": "",
-			"icon": "material-outline:personal_injury",
-			"sx": {},
-			"minSelected": null,
-			"maxSelected": null
-			},
-			"sortOrder": 2,
-			"componentName": "DomsTextField"
-		},
-		{
 			"uid": "K6OnWrN6KtL",
 			"name": "Number of beds in the facility",
 			"shortName": "Facility beds",
@@ -2113,7 +1907,7 @@
 			"zeroIsSignificant": false,
 			"iconText": "material-outline:bed",
 			"fieldType": "number",
-			"aggregationLevels": [1, 2, 3],
+			"aggregationLevels": [1, 2, 3, 4, 5],
 			"aggregationType": "SUM",
 			"app": "IHRS",
 			"dataElementQuestionType": 1,
@@ -2183,7 +1977,7 @@
 			"section": {
 			"name": "Utilization of Service",
 			"sortOrder": 2,
-			"deOrder": 3
+			"deOrder": 1
 			},
 			"formStyles": {
 			"fieldMask": "",
@@ -2199,7 +1993,110 @@
 			"minSelected": null,
 			"maxSelected": null
 			},
-			"sortOrder": 3,
+			"sortOrder": 1,
+			"componentName": "DomsTextField"
+		},
+		{
+			"uid": "w3WCZnDlu45",
+			"name": "Number of functional beds in the facility",
+			"shortName": "Functional beds",
+			"code": "DE_UTI_FCB",
+			"description": "Number of functional beds in the facility",
+			"displayDescription": "Number of functional beds in the facility",
+			"displayFormName": "Functional beds",
+			"displayName": "Number of functional beds in the facility",
+			"displayShortName": "Functional beds",
+			"valueType": "INTEGER_ZERO_OR_POSITIVE",
+			"zeroIsSignificant": true,
+			"iconText": "material-outline:hotel",
+			"fieldType": "number",
+			"aggregationLevels": [1, 2, 3, 4, 5],
+			"aggregationType": "SUM",
+			"app": "IHRS",
+			"dataElementQuestionType": 1,
+			"dataSets": [
+			{
+				"id": "cTxL0iUYdG4"
+			}
+			],
+			"organisationTypes": [
+			"CDG5isZ83tF",
+			"vuFUzsSAcS0"
+			],
+			"dataElementGroups": {
+			"id": "hPquGTHUoxo",
+			"name": "Utilization of Service"
+			},
+			"categoryCombo": {
+			"id": "bjDvmb4bfuf"
+			},
+			"metrics": null,
+			"value": null,
+			"answered": false,
+			"disabled": false,
+			"optionSet": {},
+			"optionSetValue": false,
+			"queryMods": {
+			"allowFutureDates": false,
+			"skipValidation": false
+			},
+			"commentOptionSet": {},
+			"validationRules": {
+			"required": true,
+			"min": null,
+			"max": 100000,
+			"regex": null,
+			"errorMessage": "Please enter a positive number of bed days"
+			},
+			"visibility": {
+			"visible": true,
+			"dependsOn": null,
+			"conditions": []
+			},
+			"access": {
+			"read": true,
+			"write": true,
+			"delete": false,
+			"manage": false
+			},
+			"defaultValue": null,
+			"calculatedValue": {
+			"expression": null,
+			"dependsOn": []
+			},
+			"displayInReview": true,
+			"displayConditions": {
+			"type": "ALWAYS",
+			"expression": null,
+			"dependencies": []
+			},
+			"unitOfMeasurement": "days",
+			"valueTypeOptions": {
+			"allowedFileTypes": [],
+			"maxFileSize": 0
+			},
+			"legendSet": {},
+			"legendSets": [],
+			"section": {
+				"name": "Utilization of Service",
+				"sortOrder": 2,
+				"deOrder": 2
+			},
+			"formStyles": {
+			"fieldMask": "",
+			"helpText": "Calculate as (number of beds × days in month)",
+			"placeholder": "Enter Functional beds",
+			"fieldSize": "medium",
+			"variant": "outlined",
+			"row": false,
+			"muiColor": "primary",
+			"color": "",
+			"icon": "material-outline:hotel",
+			"sx": {},
+			"minSelected": null,
+			"maxSelected": null
+			},
+			"sortOrder": 2,
 			"componentName": "DomsTextField"
 		},
 		{
@@ -70056,6 +69953,7 @@
 			"displayShortName": "Hospital Report",
 			"periodTypeId": 1,
 			"periodType": "MONTHLY",
+			"aggregationType": "NONE",
 			"formBlock": null,
 			"formName": "Hospital Report Form",
 			"formType": "DEFAULT",
@@ -70155,7 +70053,7 @@
 				"name": "General Patient Statistics",
 				"type": "main",
 				"sortOrder": 1,
-				"formBlock": "VerticalMatrixTextFieldBlock",
+				"formBlock": "TextFieldMatrixBlock",
 				"access": {
 					"read": true,
 					"write": true,
@@ -70198,7 +70096,7 @@
 				"name": "Utilization of Service",
 				"type": "main",
 				"sortOrder": 2,
-				"formBlock": "DomsTextField",
+				"formBlock": "DomsTextBlock",
 				"access": {
 					"read": true,
 					"write": true,
@@ -70241,7 +70139,7 @@
 				"name": "Maternal & Child Health",
 				"type": "main",
 				"sortOrder": 3,
-				"formBlock": "DomsTextField",
+				"formBlock": "DomsTextBlock",
 				"access": {
 					"read": true,
 					"write": true,
@@ -70370,7 +70268,7 @@
 					"name": "Blood Bank Services",
 					"type": "dynamic",
 					"sortOrder": 6,
-					"formBlock": "DomsTextField",
+					"formBlock": "DomsTextBlock",
 					"access": {
 						"read": true,
 						"write": true,
@@ -70413,7 +70311,7 @@
 					"name": "Surgical Services",
 					"type": "dynamic",
 					"sortOrder": 7,
-					"formBlock": "TemplateMenuVerticalMatrix",
+					"formBlock": "TemplateMenuMatrixBlock",
 					"access": {
 						"read": true,
 						"write": true,
@@ -70542,7 +70440,7 @@
 				"name": "Laboratory Services",
 				"type": "dynamic",
 				"sortOrder": 10,
-				"formBlock": "TemplateMenuVerticalMatrix",
+				"formBlock": "TemplateMenuMatrixBlock",
 				"access": {
 					"read": true,
 					"write": true,
@@ -71114,6 +71012,7 @@
 		  "formBlock": "TemplateMenuObjectForm",
 		  "formName": "Laboratory Report Form",
 		  "formType": "DEFAULT",
+		  "aggregationType": "NONE",
 		  "showSectionOverview": true,
 		  "renderAsTabs": true,
 		  "renderHorizontally": false,
@@ -71215,6 +71114,7 @@
 		  "formBlock": "TemplateMenuObjectForm",
 		  "formName": "Radiology Report Form",
 		  "formType": "DEFAULT",
+		  "aggregationType": "NONE",
 		  "showSectionOverview": true,
 		  "renderAsTabs": true,
 		  "renderHorizontally": false,
@@ -71316,6 +71216,7 @@
 		  "formBlock": "TemplateMenuValueForm",
 		  "formName": "Specialist Services Report Form",
 		  "formType": "DEFAULT",
+		  "aggregationType": "SUM",
 		  "showSectionOverview": true,
 		  "renderAsTabs": true,
 		  "renderHorizontally": false,
@@ -71417,6 +71318,7 @@
 		  "formBlock": "TemplateMenuObjectForm",
 		  "formName": "Optician Clinic Form",
 		  "formType": "DEFAULT",
+		  "aggregationType": "NONE",
 		  "showSectionOverview": true,
 		  "renderAsTabs": false,
 		  "renderHorizontally": false,
@@ -71518,6 +71420,7 @@
 		  "formBlock": "TemplateMenuObjectForm",
 		  "formName": "Opthalmology Services Form",
 		  "formType": "DEFAULT",
+		  "aggregationType": "NONE",
 		  "showSectionOverview": true,
 		  "renderAsTabs": false,
 		  "renderHorizontally": false,
@@ -71619,6 +71522,7 @@
 		  "formBlock": "TemplateMenuObjectForm",
 		  "formName": "Opthalmology Procedures Form",
 		  "formType": "DEFAULT",
+		  "aggregationType": "NONE",
 		  "showSectionOverview": true,
 		  "renderAsTabs": false,
 		  "renderHorizontally": false,
@@ -71720,6 +71624,7 @@
 		  "formBlock": "TemplateMenuObjectForm",
 		  "formName": "Dermatology Services Form",
 		  "formType": "DEFAULT",
+		  "aggregationType": "NONE",
 		  "showSectionOverview": true,
 		  "renderAsTabs": false,
 		  "renderHorizontally": false,
@@ -71821,6 +71726,7 @@
 		  "formBlock": "TemplateMenuObjectForm",
 		  "formName": "Dermatology Procedures Form",
 		  "formType": "DEFAULT",
+		  "aggregationType": "NONE",
 		  "showSectionOverview": true,
 		  "renderAsTabs": false,
 		  "renderHorizontally": false,
@@ -71922,6 +71828,7 @@
 		  "formBlock": "TemplateMenuObjectForm",
 		  "formName": "Dental Services Form",
 		  "formType": "DEFAULT",
+		  "aggregationType": "NONE",
 		  "showSectionOverview": true,
 		  "renderAsTabs": false,
 		  "renderHorizontally": false,
@@ -72023,6 +71930,7 @@
 			"formBlock": "TemplateMenuObjectForm",
 			"formName": "Dental Procedures Form",
 			"formType": "DEFAULT",
+			"aggregationType": "NONE",
 			"showSectionOverview": true,
 			"renderAsTabs": false,
 			"renderHorizontally": false,
@@ -72124,6 +72032,7 @@
 			"formBlock": "TemplateMenuObjectForm",
 			"formName": "Endoscopic Procedures Form",
 			"formType": "DEFAULT",
+			"aggregationType": "NONE",
 			"showSectionOverview": true,
 			"renderAsTabs": false,
 			"renderHorizontally": false,

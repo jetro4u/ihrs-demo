@@ -4,7 +4,7 @@ export type Access = {
     externalize: boolean
     manage: boolean
     read: boolean
-    update: boolean
+    update?: boolean
     write: boolean
 }
 

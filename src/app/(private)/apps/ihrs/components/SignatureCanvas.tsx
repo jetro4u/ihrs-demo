@@ -10,19 +10,19 @@ export interface Point {
 interface SignatureCanvasProps {
   lines: Point[][];
   onDraw: (lines: Point[][]) => void;
-  width?: number;
+  width?: string | number;
   height?: number;
   className?: string;
 }
 
 interface SVGImageProps {
   lines: Point[][];
-  width?: number;
+  canvasWidth: number;
   height?: number;
 }
 
 // Enhanced SVGImage component with download functionality
-const SVGImage: React.FC<SVGImageProps> = ({ lines, width = 280, height = 200 }) => {
+const SVGImage: React.FC<SVGImageProps> = ({ lines, canvasWidth = 280, height = 200 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
 
   if (!lines || lines.length === 0) return <></>;
@@ -61,7 +61,7 @@ const SVGImage: React.FC<SVGImageProps> = ({ lines, width = 280, height = 200 })
       <svg 
         ref={svgRef}
         className="w-full h-full" 
-        viewBox={`0 0 ${width} ${height}`}
+        viewBox={`0 0 ${canvasWidth} ${height}`}
       >
         <path 
           d={d} 
@@ -87,12 +87,34 @@ const SVGImage: React.FC<SVGImageProps> = ({ lines, width = 280, height = 200 })
 const SignatureCanvas: React.FC<SignatureCanvasProps> = ({
   lines,
   onDraw,
-  width = 280,
+  width = "280px",
   height = 200,
   className
 }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [canvasWidth, setCanvasWidth] = useState(280);
+
+  // Update canvas width when component mounts or ref changes
+  React.useEffect(() => {
+    const updateCanvasWidth = () => {
+      if (canvasRef.current) {
+        const boundingRect = canvasRef.current.getBoundingClientRect();
+        setCanvasWidth(boundingRect.width);
+      }
+    };
+
+    // Set initial width
+    updateCanvasWidth();
+
+    // Add resize listener
+    window.addEventListener('resize', updateCanvasWidth);
+    
+    // Clean up
+    return () => {
+      window.removeEventListener('resize', updateCanvasWidth);
+    };
+  }, [canvasRef.current]);
 
   const relativeCoordinatesForEvent = (e: React.MouseEvent | React.TouchEvent | TouchEvent | MouseEvent): Point => {
     if (!canvasRef.current) {
@@ -100,7 +122,7 @@ const SignatureCanvas: React.FC<SignatureCanvasProps> = ({
     }
 
     const boundingRect = canvasRef.current.getBoundingClientRect();
-    const scaleX = width / boundingRect.width;
+    const scaleX = canvasWidth / boundingRect.width;
     const scaleY = height / boundingRect.height;
   
     // Handle touch events
@@ -153,6 +175,9 @@ const SignatureCanvas: React.FC<SignatureCanvasProps> = ({
     onDraw([]);
   };
 
+  // Apply width style properly based on type
+  const widthStyle = typeof width === 'number' ? `${width}px` : width;
+
   return (
     <div
       className={clsx("relative", className || "w-[400px] h-[200px] border border-gray-300 rounded cursor-crosshair")}
@@ -163,9 +188,12 @@ const SignatureCanvas: React.FC<SignatureCanvasProps> = ({
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
-      style={{ touchAction: 'none' }}
+      style={{ 
+        touchAction: 'none',
+        width: widthStyle
+      }}
     >
-      <SVGImage lines={lines} width={width} height={height} />
+      <SVGImage lines={lines} canvasWidth={canvasWidth} height={height} />
       <button
         type="button"
         onClick={clear}

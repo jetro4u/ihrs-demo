@@ -8,7 +8,7 @@ import {
   Chip,
   TextFieldProps,
 } from '@mui/material';
-import DomsSvgIcon from '../components/DomsSvgIcon';
+import DomsSvgIcon from './DomsSvgIcon';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import WarningIcon from '@mui/icons-material/Warning';
@@ -25,12 +25,12 @@ export enum FieldStatus {
 }
 
 // Extended props interface
-interface DomsTextFieldProps {
+interface DomsTextBlockProps {
   q: DataElement;
   dataSet: string;
   period: string;
   source: string;
-  onSave?: (data: any) => Promise<{ success: boolean }>;
+  onSubmit: (data: string, dataElement: string, categoryOptionCombo: string) => Promise<{ success: boolean }>;
   existingValues?: any[];
   onValuesUpdate?: (values: any[]) => void;
   readOnly?: boolean;
@@ -41,12 +41,12 @@ interface DomsTextFieldProps {
   onBlur?: () => void;
 }
 
-const DomsTextField: FC<DomsTextFieldProps> = ({
+const DomsTextBlock: FC<DomsTextBlockProps> = ({
   q,
   dataSet,
   period,
   source,
-  onSave,
+  onSubmit,
   existingValues = [],
   onValuesUpdate,
   readOnly = false,
@@ -57,7 +57,7 @@ const DomsTextField: FC<DomsTextFieldProps> = ({
   onBlur
 }) => {
   // States for managing form data and submission status
-  const [value, setValue] = useState<any>('');
+  const [value, setValue] = useState<string>('');
   const [submitted, setSubmitted] = useState<boolean>(false);
   const [status, setStatus] = useState<FieldStatus>(FieldStatus.IDLE);
   const [error, setError] = useState<string>('');
@@ -68,27 +68,7 @@ const DomsTextField: FC<DomsTextFieldProps> = ({
   const validationRules = q.validationRules || {};
   const showSubmitIndicator = q.showSubmitIndicator || true;
   const disableAnimation = q.disableAnimation || false;
-  const autoSaveDelay = q.autoSaveDelay || 400;
-
-  // Initialize IndexedDB
-  useEffect(() => {
-    const initIndexedDB = async () => {
-      try {
-        await openDB('dataorb-db', 1, {
-          upgrade(db) {
-            if (!db.objectStoreNames.contains('dataValues')) {
-              db.createObjectStore('dataValues', { keyPath: 'uuid' });
-            }
-          },
-        });
-        console.log('IndexedDB initialized successfully');
-      } catch (error) {
-        console.error('Error initializing IndexedDB:', error);
-      }
-    };
-    
-    initIndexedDB();
-  }, []);
+  const autoSaveDelay = q.autoSaveDelay || 300;
 
   // Initialize value from existingValues
   useEffect(() => {
@@ -336,7 +316,7 @@ const validateInput = (input: string | number): string => {
     
     try {
       setStatus(FieldStatus.SAVING);
-      
+      /*
       // Check for required source and period
       const effectiveSource = source || localStorage.getItem('selected-org') || '';
       const effectivePeriod = period || localStorage.getItem('selected-period') || '';
@@ -358,32 +338,18 @@ const validateInput = (input: string | number): string => {
       if (onValuesUpdate) {
         onValuesUpdate(updatedValues);
       }
-      
-      // Store in localStorage as backup
-      try {
-        localStorage.setItem(`form-data-${dataElementId}`, JSON.stringify(valuePayload));
-      } catch (e) {
-        console.warn('Failed to save to localStorage:', e);
-      }
-      
-      // Store in IndexedDB
-      try {
-        const db = await openDB('dataorb-db', 1);
-        const tx = db.transaction('dataValues', 'readwrite');
-        await tx.store.put(valuePayload);
-        await tx.done;
-      } catch (dbError) {
-        console.error('IndexedDB save error:', dbError);
-      }
+      */
       
       // Try to save to server
-      if (onSave) {
+      if (onSubmit) {
         try {
-          const response = await onSave(valuePayload);
-          if (response.success) {
-            setSubmitted(true);
-            setStatus(FieldStatus.SAVED);
-          }
+          const stringifiedValue = 
+            typeof value === 'object' ? JSON.stringify(value) : 
+            value !== null && value !== undefined ? String(value) : '';
+          await onSubmit(stringifiedValue, dataElementId, 'HllvX50cXC0');
+
+          setSubmitted(true);
+          setStatus(FieldStatus.SAVED);
         } catch (serverError) {
           console.error('Error saving to server, keeping in IndexedDB for later sync:', serverError);
           setStatus(FieldStatus.WARNING);
@@ -577,4 +543,4 @@ const validateInput = (input: string | number): string => {
   );
 };
 
-export default DomsTextField;
+export default DomsTextBlock;

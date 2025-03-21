@@ -375,10 +375,6 @@ const MenuObjectReportLandingPage: React.FC<MenuObjectReportLandingPageProps> = 
     localStorage.setItem('ihrs-submitted-records', JSON.stringify(records));
   };
 
-  const handleBedCapacityChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setBedCapacity(event.target.value);
-  };
-
   const handleDateChange = (date: Date | null) => {
     console.log("date", date);
     setSelectedDate(date);
@@ -599,8 +595,7 @@ const MenuObjectReportLandingPage: React.FC<MenuObjectReportLandingPageProps> = 
     return (
       organization.trim() !== '' &&
       completeDatasetInfo.dataSet.trim() !== '' &&
-      selectedDate !== null &&
-      bedCapacity.trim() !== ''
+      selectedDate !== null
     );
   };
 
@@ -656,16 +651,6 @@ const MenuObjectReportLandingPage: React.FC<MenuObjectReportLandingPageProps> = 
                   required: true
                 }
               }}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField
-              required
-              fullWidth
-              label="Bed Capacity"
-              type="number"
-              value={bedCapacity}
-              onChange={handleBedCapacityChange}
             />
           </Grid>
         </Grid>

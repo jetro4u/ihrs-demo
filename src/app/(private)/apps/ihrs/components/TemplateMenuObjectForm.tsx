@@ -55,25 +55,12 @@ export interface MetadataProps {
   dataset?: { uid: string; name: string; periodtypeid: number; shortName: string; description: string }[];
 }
 
-export const QuestionTypes: Record<string, number> = {
-  INTEGER_SELECT: 1,
-  TEXT_SELECT: 2,
-  BOOLEAN_SELECT: 3,
-  MULTIPLE_SELECT: 4,
-  INTEGER_DESCRIPTIVE: 5,
-  TEXT_DESCRIPTIVE: 6,
-  CUSTOM: 7,
-  INTEGER_INPUT: 8,
-  TEXT_INPUT: 9,
-  HIDDEN: 10
-};
-
 interface TemplateMenuObjectFormProps {
   q: DataElement[];
   dataSet: string;
   period: string;
   source: string;
-  onSave?: (data: any) => Promise<{ success: boolean }>;
+  onSubmit: (data: MetricData, dataElement: string, categoryOptionCombo: string) => Promise<{ success: boolean }>;
   templates?: Template[];
   onNext?: () => void;
   onBack?: () => void;
@@ -86,7 +73,7 @@ const TemplateMenuObjectForm: React.FC<TemplateMenuObjectFormProps> = ({
   dataSet,
   period,
   source,
-  onSave,
+  onSubmit,
   templates: externalTemplates = [],
   onNext,
   onBack,
@@ -130,21 +117,6 @@ const TemplateMenuObjectForm: React.FC<TemplateMenuObjectFormProps> = ({
       word.charAt(0).toUpperCase() + word.slice(1)
     ).join(' ');
   };
-  
-  // Initialize IndexedDB
-  useEffect(() => {
-    const initIndexedDB = async () => {
-      await openDB('ihrs-db', 1, {
-        upgrade(db) {
-          if (!db.objectStoreNames.contains('ihrsDataRecord')) {
-            db.createObjectStore('ihrsDataRecord', { keyPath: 'uuid' });
-          }
-        },
-      });
-    };
-    
-    initIndexedDB();
-  }, []);
   
   // Update templates when external templates change
   useEffect(() => {
@@ -341,7 +313,7 @@ const TemplateMenuObjectForm: React.FC<TemplateMenuObjectFormProps> = ({
         throw new Error(`Element ${elementKey} not found in metadata`);
       }
       
-      // Use values from props, falling back to localStorage if needed
+      /* Use values from props, falling back to localStorage if needed
       const effectiveSourceId = source || localStorage.getItem('ihrs-selected-org') || '';
       const effectivePeriod = period || localStorage.getItem('ihrs-selected-period') || '';
       const effectiveDataSetId = dataSet || localStorage.getItem('ihrs-selected-dataset') || '';
@@ -379,23 +351,17 @@ const TemplateMenuObjectForm: React.FC<TemplateMenuObjectFormProps> = ({
       if (onRecordsUpdate) {
         onRecordsUpdate(updatedRecords);
       }
-      
-      // Store in IndexedDB first
-      const db = await openDB('ihrs-db', 1);
-      await db.put('ihrsDataRecord', recordData);
+        */
       
       // Then try to save to server
-      if (onSave) {
+      if (onSubmit) {
         try {
-          await onSave(recordData);
+          await onSubmit(data[elementKey], elementOption.uid, 'HllvX50cXC0');
           
           // Mark as successfully submitted
           if (!submittedElements.includes(elementKey)) {
             setSubmittedElements(prev => [...prev, elementKey]);
           }
-          
-          // Remove from IDB for successful submissions
-          await db.delete('ihrsDataRecord', recordData.uuid);
           
           alert(`${getElementLabel(elementKey)} data submitted successfully!`);
         } catch (error) {

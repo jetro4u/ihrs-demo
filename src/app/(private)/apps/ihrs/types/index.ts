@@ -385,12 +385,12 @@ export type Option = {
 export interface DataSet {
 	uid: string;
 	name: string;
-  access: Access
+  access?: Access
   aggregationType: AggregationType
   categoryCombo: ID
-  compulsoryDataElementOperands: DataElementOperand[]
-  compulsoryFieldsCompleteOnly: boolean
-  dataEntryForm: DataEntryForm
+  compulsoryDataElementOperands?: DataElementOperand[]
+  compulsoryFieldsCompleteOnly?: boolean
+  dataEntryForm?: DataEntryForm
   dataInputPeriods: DataInputPeriod[]
 	periodTypeId?: number;
   periodType: PeriodType
@@ -398,7 +398,7 @@ export interface DataSet {
 	shortName?: string;
 	sections?: Section[];
 	sectionOverviews?: SectionOverview[]
-    showSectionOverview: boolean
+  showSectionOverview: boolean
 	code: string;
 	formBlock?: string;
   formName: string
@@ -651,21 +651,6 @@ export interface Point {
 	x: number;
 	y: number;
 }
-export interface DataRecordPayload {
-	source: string;
-	period: string;
-	dataElement: string;
-	attributeOptionCombo: string;
-	data: Record<string, any>;
-	date: Date;
-	comment?: string | null;
-	followup?: boolean;
-}
-
-export type DataValueMapping = {
-	dataElementId: string;
-	value: Record<string, any>;
-}
 
 interface Field {
     categoryOptionCombo: string;
@@ -821,6 +806,22 @@ interface FieldTemplate {
   }>;
   generateFields: (variables: Record<string, any>) => Field[];
 }
+export interface DataRecordPayload {
+	source: string;
+	period: string;
+	dataElement: string;
+	attributeOptionCombo: string;
+	data: Record<string, any>;
+	date: Date;
+	comment?: string | null;
+	followup?: boolean;
+}
+export type StoredDataRecord = DataRecordPayload & { uniqueKey: string };
+
+export type DataValueMapping = {
+	dataElementId: string;
+	value: Record<string, any>;
+}
 
 export interface DataValuePayload {
 	source: string;
@@ -833,6 +834,7 @@ export interface DataValuePayload {
     comment?: string
 	followup?: boolean;
 }
+export type StoredDataValue = DataValuePayload & { uniqueKey: string };
 
 export enum ValueType {
 	TEXT = 'TEXT',
@@ -863,6 +865,14 @@ export enum ValueType {
 	FILE_RESOURCE = 'FILE_RESOURCE',
 	IMAGE = 'IMAGE',
 	GEOJSON = 'GEOJSON',
+}
+
+export enum FieldStatus {
+  IDLE = 'idle',
+  SAVING = 'saving',
+  SAVED = 'saved',
+  ERROR = 'error',
+  WARNING = 'warning'
 }
 
 export const QuestionTypes = {

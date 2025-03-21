@@ -15,25 +15,24 @@ import {
   Typography,
   CircularProgress,
   TextFieldProps,
-  IconButton
+  IconButton,
+  useMediaQuery,
+  useTheme,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Card,
+  CardContent,
+  Divider,
+  Grid
 } from '@mui/material';
-import DomsSvgIcon from '../components/DomsSvgIcon';
+import DomsSvgIcon from './DomsSvgIcon';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ErrorIcon from '@mui/icons-material/Error';
 import WarningIcon from '@mui/icons-material/Warning';
-import { openDB } from 'idb';
-import { DataElement, ValueType, CategoryOptionCombo } from '../types';
-
-// Import the FieldStatus enum from DomsTextBlock
-export enum FieldStatus {
-  IDLE = 'idle',
-  SAVING = 'saving',
-  SAVED = 'saved',
-  ERROR = 'error',
-  WARNING = 'warning'
-}
+import { DataElement, ValueType, CategoryOptionCombo, FieldStatus } from '../types';
 
 // Helper types to manage aggregated data
 type CategoryMatrix = {
@@ -43,7 +42,6 @@ type CategoryMatrix = {
 
 // Adapted from DomsTextBlock's DataValuePayload
 interface DataValuePayload {
-  uuid: string;
   source: string;
   period: string;
   dataElement: string;
@@ -53,41 +51,37 @@ interface DataValuePayload {
   comment: string;
   followup: boolean;
   date: Date;
-  storedBy: string;
-  created: string;
-  lastUpdated: string;
-  deleted: boolean;
 }
 
-interface VerticalMatrixTextFieldBlockProps {
+interface TextFieldMatrixBlockProps {
   q: DataElement;
   coc: CategoryOptionCombo[];
   dataSet: string;
   period: string;
   source: string;
-  onSave?: (data: any) => Promise<{ success: boolean }>;
+  onSubmit?: (data: string, dataElement: string, categoryOptionCombo: string) => Promise<{ success: boolean }>;
   existingValues?: any[];
   onValuesUpdate?: (values: any[]) => void;
   readOnly?: boolean;
   customValidation?: (value: any) => string | null;
   onValidationStateChange?: (isValid: boolean) => void;
-  sx?: any;
 }
-const SESSION_STORAGE_KEY_PREFIX = 'matrix-field-';
 
-const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
+const TextFieldMatrixBlock: FC<TextFieldMatrixBlockProps> = ({
   q,
   coc,
   period,
   source,
-  onSave,
+  onSubmit,
   existingValues = [],
   onValuesUpdate,
   readOnly = false,
   customValidation,
-  onValidationStateChange,
-  sx
+  onValidationStateChange
 }) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  
   // States for managing form data and submission status
   const [matrix, setMatrix] = useState<CategoryMatrix>({ rows: [], columns: [] });
   const [values, setValues] = useState<Record<string, string>>({});
@@ -101,72 +95,11 @@ const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
   const validationRules = q.validationRules || {};
   const autoSaveDelay = q.autoSaveDelay || 400;
 
-  const [collapsedRows, setCollapsedRows] = useState<Record<string, boolean>>({});
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [isComponentCollapsed, setIsComponentCollapsed] = useState(false);
-
-  // Initialize IndexedDB
-  useEffect(() => {
-    const initIndexedDB = async () => {
-      try {
-        await openDB('dataorb-db', 1, {
-          upgrade(db) {
-            if (!db.objectStoreNames.contains('dataValues')) {
-              db.createObjectStore('dataValues', { keyPath: 'uuid' });
-            }
-          },
-        });
-        console.log('IndexedDB initialized successfully');
-      } catch (error) {
-        console.error('Error initializing IndexedDB:', error);
-      }
-    };
-    
-    initIndexedDB();
-  }, []);
-
-  const loadFromSessionStorage = () => {
-    try {
-      const storageKey = `${SESSION_STORAGE_KEY_PREFIX}${dataElementId}`;
-      const storedData = sessionStorage.getItem(storageKey);
-      
-      if (storedData) {
-        const parsedData = JSON.parse(storedData);
-        setValues(parsedData.values || {});
-        setStatuses(parsedData.statuses || {});
-        setErrors(parsedData.errors || {});
-        setSubmittedCombos(parsedData.submittedCombos || []);
-      }
-    } catch (error) {
-      console.error('Error loading from session storage:', error);
-    }
-  };
-
-  const saveToSessionStorage = (
-    newValues: Record<string, string>,
-    newStatuses: Record<string, FieldStatus>,
-    newErrors: Record<string, string>,
-    newSubmittedCombos: string[]
-  ) => {
-    try {
-      const storageKey = `${SESSION_STORAGE_KEY_PREFIX}${dataElementId}`;
-      const dataToStore = {
-        values: newValues,
-        statuses: newStatuses,
-        errors: newErrors,
-        submittedCombos: newSubmittedCombos,
-        timestamp: new Date().getTime()
-      };
-      
-      sessionStorage.setItem(storageKey, JSON.stringify(dataToStore));
-    } catch (error) {
-      console.error('Error saving to session storage:', error);
-    }
-  };
 
   // Initialize values from existingValues and sessionStorage
   useEffect(() => {
-    loadFromSessionStorage();
-    
     // Then merge with existingValues if available
     if (existingValues && existingValues.length > 0) {
       const newValues: Record<string, string> = { ...values };
@@ -190,9 +123,6 @@ const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
       setValues(newValues);
       setStatuses(newStatuses);
       setSubmittedCombos(newSubmittedCombos);
-      
-      // Save the merged data to sessionStorage
-      saveToSessionStorage(newValues, newStatuses, errors, newSubmittedCombos);
     }
   }, [existingValues, dataElementId]);
 
@@ -215,13 +145,13 @@ const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
       columns: Array.from(colValues)
     });
     
-    // Initialize collapsed state for each row
-    const initialCollapsedState: Record<string, boolean> = {};
+    // Initialize expanded state for each row (default to expanded on mobile)
+    const initialExpandedState: Record<string, boolean> = {};
     Array.from(rowValues).forEach(row => {
-      initialCollapsedState[row] = false;
+      initialExpandedState[row] = isMobile;
     });
-    setCollapsedRows(initialCollapsedState);
-  }, [coc]);
+    setExpandedRows(initialExpandedState);
+  }, [coc, isMobile]);
 
   // Get input type based on valueType (copied from DomsTextBlock)
   const getInputType = useMemo(() => {
@@ -361,30 +291,6 @@ const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
     });
   };
 
-  // Prepare payload for saving (adapted from DomsTextBlock)
-  const preparePayload = (cocId: string, value: string): DataValuePayload => {
-    const stringifiedValue = 
-      typeof value === 'object' ? JSON.stringify(value) : 
-      value !== null && value !== undefined ? String(value) : '';
-    
-    return {
-      uuid: crypto.randomUUID(),
-      source: source || localStorage.getItem('selected-org') || '',
-      period: period || localStorage.getItem('selected-period') || '',
-      dataElement: dataElementId,
-      categoryOptionCombo: cocId,
-      attributeOptionCombo: '',
-      value: stringifiedValue,
-      comment: 'ok',
-      followup: false,
-      date: new Date(),
-      storedBy: localStorage.getItem('userId') || 'unknown',
-      created: new Date().toISOString(),
-      lastUpdated: new Date().toISOString(),
-      deleted: false
-    };
-  };
-
   // Handle saving data for a specific cell
   const handleSaveData = async (cocId: string) => {
     const currentValue = values[cocId] || '';
@@ -394,8 +300,6 @@ const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
       const newStatuses = { ...statuses, [cocId]: FieldStatus.ERROR };
       setStatuses(newStatuses);
       
-      // Save to session storage even in error state
-      saveToSessionStorage(values, newStatuses, errors, submittedCombos);
       return;
     }
     
@@ -403,9 +307,7 @@ const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
     if ((currentValue === '' || currentValue === null || currentValue === undefined) && !validationRules.required) {
       const newStatuses = { ...statuses, [cocId]: FieldStatus.IDLE };
       setStatuses(newStatuses);
-      
-      // Save to session storage
-      saveToSessionStorage(values, newStatuses, errors, submittedCombos);
+
       return;
     }
     
@@ -413,52 +315,10 @@ const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
       const newStatuses = { ...statuses, [cocId]: FieldStatus.SAVING };
       setStatuses(newStatuses);
       
-      // Save current state to session storage
-      saveToSessionStorage(values, newStatuses, errors, submittedCombos);
-      
-      // Check for required source and period
-      const effectiveSource = source || localStorage.getItem('selected-org') || '';
-      const effectivePeriod = period || localStorage.getItem('selected-period') || '';
-      
-      if (!effectiveSource || !effectivePeriod) {
-        throw new Error('Missing required source ID or period');
-      }
-      
-      // Prepare payload
-      const valuePayload = preparePayload(cocId, currentValue);
-      
-      // Update local values
-      const updatedValues = [
-        ...(existingValues || []).filter(v => !(v.dataElement === dataElementId && v.categoryOptionCombo === cocId)),
-        valuePayload
-      ];
-      
-      // Notify parent component of values update
-      if (onValuesUpdate) {
-        onValuesUpdate(updatedValues);
-      }
-      
-      // Store in localStorage as backup
-      try {
-        localStorage.setItem(`form-data-${dataElementId}-${cocId}`, JSON.stringify(valuePayload));
-      } catch (e) {
-        console.warn('Failed to save to localStorage:', e);
-      }
-      
-      // Store in IndexedDB
-      try {
-        const db = await openDB('dataorb-db', 1);
-        const tx = db.transaction('dataValues', 'readwrite');
-        await tx.store.put(valuePayload);
-        await tx.done;
-      } catch (dbError) {
-        console.error('IndexedDB save error:', dbError);
-      }
-      
       // Try to save to server
-      if (onSave) {
+      if (onSubmit) {
         try {
-          const response = await onSave(valuePayload);
+          const response = await onSubmit(currentValue, dataElementId, cocId);
           if (response.success) {
             // Create new arrays/objects instead of modifying existing ones
             const newSubmittedCombos = [...submittedCombos.filter(id => id !== cocId), cocId];
@@ -466,9 +326,6 @@ const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
             
             setSubmittedCombos(newSubmittedCombos);
             setStatuses(newStatuses);
-            
-            // Save successful state to session storage
-            saveToSessionStorage(values, newStatuses, errors, newSubmittedCombos);
           }
         } catch (serverError) {
           console.error('Error saving to server, keeping in IndexedDB for later sync:', serverError);
@@ -477,9 +334,6 @@ const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
           
           setStatuses(newStatuses);
           setErrors(newErrors);
-          
-          // Save warning state to session storage
-          saveToSessionStorage(values, newStatuses, newErrors, submittedCombos);
         }
       } else {
         // Mark as saved even without server save
@@ -488,9 +342,6 @@ const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
         
         setSubmittedCombos(newSubmittedCombos);
         setStatuses(newStatuses);
-        
-        // Save successful state to session storage
-        saveToSessionStorage(values, newStatuses, errors, newSubmittedCombos);
       }
     } catch (error) {
       console.error('Error saving data:', error);
@@ -502,9 +353,6 @@ const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
       
       setStatuses(newStatuses);
       setErrors(newErrors);
-      
-      // Save error state to session storage
-      saveToSessionStorage(values, newStatuses, newErrors, submittedCombos);
     }
   };
 
@@ -539,9 +387,6 @@ const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
         onValidationStateChange(true);
       }
     }
-    
-    // Save current state to session storage
-    saveToSessionStorage(newValues, newStatuses, newErrors, submittedCombos);
   };
 
   // Handle blur event for auto-saving
@@ -566,8 +411,8 @@ const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
     }
   };
 
-  const toggleRowCollapse = (row: string) => {
-    setCollapsedRows(prev => ({
+  const toggleRowExpand = (row: string) => {
+    setExpandedRows(prev => ({
       ...prev,
       [row]: !prev[row]
     }));
@@ -578,7 +423,7 @@ const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
     setIsComponentCollapsed(!isComponentCollapsed);
   };
 
-  // Get status icon for a specific cell - REFACTORED
+  // Get status icon for a specific cell
   const getStatusIcon = (cocId: string) => {
     switch (statuses[cocId]) {
       case FieldStatus.SAVED:
@@ -601,7 +446,7 @@ const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
   };
 
   // Render a specific input field within the matrix
-  const renderCellInputField = (cocId: string) => {
+  const renderCellInputField = (cocId: string, rowLabel: string, columnLabel: string) => {
     const currentValue = values[cocId] || '';
     const isSaving = statuses[cocId] === FieldStatus.SAVING || autoSaving[cocId];
     const hasError = !!errors[cocId];
@@ -612,12 +457,12 @@ const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
       </InputAdornment>
     );
     
-      // For percentage type, create end adornment
+    // For percentage type, create end adornment
     const endAdornment = valueType === ValueType.PERCENTAGE ? (
       <InputAdornment position="end">%</InputAdornment>
     ) : undefined;
 
-      // Get helper text for a specific cell
+    // Get helper text for a specific cell
     const getHelperText = (cocId: string): string => {
       if (errors[cocId]) return errors[cocId];
       if (autoSaving[cocId]) return "Auto-saving...";
@@ -628,35 +473,31 @@ const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
     };
   
     const textFieldProps: TextFieldProps = {
-        id: `input-${cocId}`,
-        name: dataElementId,
-        fullWidth: true,
-        variant: q.formStyles.variant || 'outlined',
-        size: q.formStyles.fieldSize || 'small',
-        label: q.shortName,
-        placeholder: q.formStyles.placeholder || `Enter ${q.shortName}`,
-        type: getInputType,
-        value: currentValue,
-        onChange: handleInputChange(cocId),
-        onBlur: handleBlur(cocId),
-        error: hasError,
-        helperText: getHelperText(cocId),
-        disabled: readOnly || isSaving,
-        required: validationRules.required,
-        //inputRef,
-        sx: { 
-          bgcolor: 'white',
-          ...(sx || {})
-        },
-        // Replace InputProps with slotProps for MUI v7
-        slotProps: {
-          input: {
-            ...getInputProps,
-            startAdornment,
-            endAdornment
-          }
-        }
-      };
+      id: `input-${cocId}`,
+      name: dataElementId,
+      fullWidth: true,
+      variant: q.formStyles?.variant || 'outlined',
+      size: q.formStyles?.fieldSize || 'small',
+      label: isMobile ? `${columnLabel}` : q.shortName,
+      placeholder: q.formStyles?.placeholder || `Enter ${q.shortName}`,
+      type: getInputType,
+      value: currentValue,
+      onChange: handleInputChange(cocId),
+      onBlur: handleBlur(cocId),
+      error: hasError,
+      helperText: getHelperText(cocId),
+      disabled: readOnly || isSaving,
+      required: validationRules.required,
+      sx: { 
+        bgcolor: 'white',
+        ...(q.formStyles?.sx || {})
+      },
+      InputProps: {
+        startAdornment,
+        endAdornment,
+        ...getInputProps
+      }
+    };
     
     return (
       <Box sx={{ position: 'relative' }}>
@@ -690,9 +531,74 @@ const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
     );
   };
 
-  // Render the complete matrix table
-  const renderDisaggregatedTable = () => {
-    // If no disaggregation is available, render a message
+  // Render the matrix for mobile view (card-based approach)
+  const renderMobileMatrix = () => {
+    if (matrix.rows.length === 0 || matrix.columns.length === 0) {
+      return (
+        <Box sx={{ mb: 3 }}>
+          <Typography color="text.secondary">
+            No category option combinations available for this data element.
+          </Typography>
+        </Box>
+      );
+    }
+    
+    return (
+      <Box sx={{ mb: 3 }}>
+        {matrix.rows.map((row, rowIndex) => (
+          <Accordion 
+            key={rowIndex}
+            expanded={expandedRows[row] || false}
+            onChange={() => toggleRowExpand(row)}
+            sx={{ 
+              mb: 1,
+              '&:before': { display: 'none' },
+              boxShadow: 1,
+              borderRadius: '4px',
+              overflow: 'hidden'
+            }}
+          >
+            <AccordionSummary
+              expandIcon={<ExpandMoreIcon />}
+              sx={{
+                bgcolor: theme.palette.primary.main,
+                color: 'white',
+                '& .MuiAccordionSummary-expandIconWrapper': {
+                  color: 'white'
+                }
+              }}
+            >
+              <Typography sx={{ fontWeight: 'bold' }}>{row}</Typography>
+            </AccordionSummary>
+            <AccordionDetails sx={{ p: 2 }}>
+              <Grid container spacing={2}>
+                {matrix.columns.map((column, colIndex) => {
+                  const coc = findCategoryOptionCombo(row, column);
+                  if (!coc) return null;
+                  
+                  return (
+                    <Grid item xs={12} key={colIndex}>
+                      <Card sx={{ p: 1 }}>
+                        <CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}>
+                          <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
+                            {column}
+                          </Typography>
+                          {renderCellInputField(coc.id, row, column)}
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  );
+                })}
+              </Grid>
+            </AccordionDetails>
+          </Accordion>
+        ))}
+      </Box>
+    );
+  };
+
+  // Render the matrix as a traditional table for desktop
+  const renderDesktopMatrix = () => {
     if (matrix.rows.length === 0 || matrix.columns.length === 0) {
       return (
         <Box sx={{ mb: 3 }}>
@@ -726,7 +632,7 @@ const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
                   sx={{ 
                     fontWeight: 'bold', 
                     bgcolor: 'primary.main', 
-                    color: 'white !important', // Force white text
+                    color: 'white !important',
                     minWidth: '120px',
                     '& .MuiTableCell-root': {
                       color: 'white !important'
@@ -753,7 +659,6 @@ const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
                     {row}
                   </TableCell>
                   {!isComponentCollapsed && matrix.columns.map((column, colIndex) => {
-                    // Column is gender and row is age category
                     const coc = findCategoryOptionCombo(row, column);
                     if (!coc) {
                       console.warn(`Could not find category option combo for: ${column}, ${row}`);
@@ -762,7 +667,7 @@ const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
                     
                     return (
                       <TableCell key={colIndex} align="center" sx={{ p: 1, minWidth: '120px' }}>
-                        {renderCellInputField(coc.id)}
+                        {renderCellInputField(coc.id, row, column)}
                       </TableCell>
                     );
                   })}
@@ -801,7 +706,7 @@ const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
           mb: 4,
           border: hasAllSubmitted ? '1px solid #c8e6c9' : 'none',
           bgcolor: hasAllSubmitted ? '#f0f7f0' : 'white',
-          ...(sx || {})
+          ...(q.formStyles?.sx || {})
         }}
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -838,11 +743,37 @@ const VerticalMatrixTextFieldBlock: FC<VerticalMatrixTextFieldBlockProps> = ({
           </IconButton>
         </Box>
         
-        {/* Render the matrix table */}
-        {renderDisaggregatedTable()}
+        {/* Description */}
+        {q.description && (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {q.description}
+          </Typography>
+        )}
+        
+        {/* Render the appropriate view based on screen size */}
+        {!isComponentCollapsed && (
+          <>
+            {isMobile ? renderMobileMatrix() : renderDesktopMatrix()}
+          </>
+        )}
+        
+        {isComponentCollapsed && (
+          <Box 
+            sx={{ 
+              p: 2, 
+              textAlign: 'center', 
+              bgcolor: 'action.hover',
+              borderRadius: 1
+            }}
+          >
+            <Typography variant="body2" color="text.secondary">
+              Matrix collapsed. Click the expand icon to show fields.
+            </Typography>
+          </Box>
+        )}
       </Paper>
     </Box>
   );
 };
 
-export default VerticalMatrixTextFieldBlock;
+export default TextFieldMatrixBlock;

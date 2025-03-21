@@ -22,7 +22,6 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import SaveIcon from '@mui/icons-material/Save';
 import DomsSvgIcon from '../components/DomsSvgIcon';
 import ObjectAutoCompleteSelect from './ObjectAutoCompleteSelect';
-import { openDB } from 'idb';
 import { DataElement } from '../types';
 
 export interface MetricData {
@@ -59,7 +58,7 @@ interface TemplateMenuValueFormProps {
   dataSet: string;
   period: string;
   source: string;
-  onSave?: (data: any) => Promise<{ success: boolean }>;
+  onSubmit: (data: string, dataElement: string, categoryOptionCombo: string) => Promise<{ success: boolean }>;
   templates?: Template[];
   onNext?: () => void;
   onBack?: () => void;
@@ -72,7 +71,7 @@ const TemplateMenuValueForm: React.FC<TemplateMenuValueFormProps> = ({
   dataSet,
   period,
   source,
-  onSave,
+  onSubmit,
   templates: externalTemplates = [],
   onNext,
   onBack,
@@ -119,26 +118,6 @@ const TemplateMenuValueForm: React.FC<TemplateMenuValueFormProps> = ({
       word.charAt(0).toUpperCase() + word.slice(1)
     ).join(' ');
   };
-  
-  // Initialize IndexedDB
-  useEffect(() => {
-    const initIndexedDB = async () => {
-      try {
-        await openDB('ihrs-db', 1, {
-          upgrade(db) {
-            if (!db.objectStoreNames.contains('ihrsDataValues')) {
-              db.createObjectStore('ihrsDataValues', { keyPath: 'uuid' });
-            }
-          },
-        });
-        console.log('IndexedDB initialized successfully');
-      } catch (error) {
-        console.error('Error initializing IndexedDB:', error);
-      }
-    };
-    
-    initIndexedDB();
-  }, []);
   
   // Update templates when external templates change
   useEffect(() => {
@@ -281,9 +260,6 @@ const TemplateMenuValueForm: React.FC<TemplateMenuValueFormProps> = ({
         onValuesUpdate([]);
       }
       
-      // Clear localStorage
-      localStorage.removeItem('ihrs-submitted-values');
-      
       // Clear locally stored form data
       Object.keys(localStorage).forEach(key => {
         if (key.startsWith('form-data-')) {
@@ -314,18 +290,18 @@ const TemplateMenuValueForm: React.FC<TemplateMenuValueFormProps> = ({
         throw new Error(`Element ${elementKey} not found in metadata`);
       }
       
-      // Use values from props, falling back to localStorage if needed
+      /* Use values from props, falling back to localStorage if needed
       const effectiveSourceId = source || localStorage.getItem('ihrs-selected-org') || '';
       const effectivePeriod = period || localStorage.getItem('ihrs-selected-period') || '';
       const effectiveDataSetId = dataSet || localStorage.getItem('ihrs-selected-dataset') || '';
       
       if (!effectiveSourceId || !effectivePeriod) {
         throw new Error('Missing required source ID or period');
-      }
+      }*/
       
       // Get the current value
       const currentValue = data[elementKey];
-      
+      /*
       // Prepare the data for saving
       const valueRecord = {
         uuid: crypto.randomUUID(),
@@ -353,29 +329,11 @@ const TemplateMenuValueForm: React.FC<TemplateMenuValueFormProps> = ({
       if (onValuesUpdate) {
         onValuesUpdate(updatedValues);
       }
-      
-      // Store in localStorage as backup
-      try {
-        localStorage.setItem('form-data-' + elementOption.uid, JSON.stringify(valueRecord));
-      } catch (e) {
-        console.warn('Failed to save to localStorage:', e);
-      }
-      
-      // Store in IndexedDB with proper error handling
-      try {
-        const db = await openDB('ihrs-db', 1);
-        const tx = db.transaction('ihrsDataValues', 'readwrite');
-        await tx.store.put(valueRecord);
-        await tx.done;
-      } catch (dbError) {
-        console.error('IndexedDB save error:', dbError);
-        // Continue execution even if IndexedDB fails
-      }
-      
+      */
       // Then try to save to server
-      if (onSave) {
+      if (onSubmit) {
         try {
-          await onSave(valueRecord);
+          await onSubmit(currentValue, elementOption.uid, 'HllvX50cXC0');
           
           // Mark as successfully submitted
           if (!submittedElements.includes(elementKey)) {
