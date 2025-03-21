@@ -1296,7 +1296,7 @@ const HospitalReportLandingPage = () => {
         overflow: 'visible'
       }}>
         <Paper sx={{ 
-          p: 3, 
+          p: { xs: 1, sm: 2, md: 3 }, // Reduced padding on mobile
           mb: 3, 
           width: '100%', 
           maxWidth: '100%', 
@@ -1306,14 +1306,14 @@ const HospitalReportLandingPage = () => {
           <Typography variant="h5" gutterBottom>
             Hospital Report Form
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Please complete all applicable sections below. Your report will be saved automatically as you progress.
           </Typography>
           
           {/* Main Sections - Always Visible but collapsible */}
           <Box sx={{ 
-            mb: 5,
-            p: 3,
+            mb: { xs: 3, sm: 4, md: 5 }, // Reduced margin on mobile
+            p: { xs: 1, sm: 2, md: 3 }, // Reduced padding on mobile
             bgcolor: '#f8f9fa', 
             borderRadius: 2,
             border: '1px solid #e0e0e0'
@@ -1338,7 +1338,7 @@ const HospitalReportLandingPage = () => {
                 expanded={expandedSections[section.id] !== undefined ? expandedSections[section.id] : section.enabled} 
                 onChange={() => toggleSectionExpansion(section.id)}
                 sx={{ 
-                  mb: 2,
+                  mb: { xs: 1, sm: 2 }, // Reduced margin between accordions
                   boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
                   '&.Mui-expanded': {
                     border: '2px solid #1976d2',
@@ -1359,6 +1359,10 @@ const HospitalReportLandingPage = () => {
                     bgcolor: '#e3f2fd',
                     '&.Mui-expanded': {
                       bgcolor: '#bbdefb'
+                    },
+                    minHeight: { xs: '48px', sm: 'auto' }, // Reduce header height on mobile
+                    '& .MuiAccordionSummary-content': {
+                      margin: { xs: '8px 0', sm: '12px 0' } // Reduce margin in accordion summary
                     }
                   }}
                 >
@@ -1368,7 +1372,8 @@ const HospitalReportLandingPage = () => {
                       sx={{ 
                         fontWeight: 600,
                         color: '#0d47a1',
-                        mr: 1
+                        mr: 1,
+                        fontSize: { xs: '1rem', sm: '1.1rem' } // Slightly smaller on mobile
                       }}
                     >
                       {index + 1}.
@@ -1377,7 +1382,7 @@ const HospitalReportLandingPage = () => {
                       variant="subtitle1" 
                       sx={{ 
                         fontWeight: 600,
-                        fontSize: '1.1rem'
+                        fontSize: { xs: '0.95rem', sm: '1.1rem' } // Slightly smaller on mobile
                       }}
                     >
                       {section.name}
@@ -1385,17 +1390,32 @@ const HospitalReportLandingPage = () => {
                   </Box>
                 </AccordionSummary>
                 <AccordionDetails sx={{ 
-                  padding: { xs: 1, sm: 3 },
-                  maxHeight: '70vh', // Limit height on small screens
+                  padding: { xs: '8px', sm: '12px', md: '16px' }, // Greatly reduced padding
+                  maxHeight: { xs: '65vh', sm: '70vh' }, // Slightly smaller max height on mobile
                   overflow: 'auto',
                   borderTop: '1px solid #e0e0e0',
-                  '& .MuiFormControl-root': { // Target form controls within
-                    width: '100%', // Ensure inputs take full width
-                    maxWidth: '100%'
-                  },
-                  '& .MuiBox-root': { // Target Box components within
+                  '& .MuiFormControl-root': {
                     width: '100%',
-                    maxWidth: '100%'
+                    maxWidth: '100%',
+                    marginBottom: { xs: '8px', sm: '16px' } // Less spacing between form elements
+                  },
+                  '& .MuiBox-root': {
+                    width: '100%',
+                    maxWidth: '100%',
+                    padding: { xs: 0, sm: '4px' } // Remove padding in nested boxes on mobile
+                  },
+                  '& .MuiGrid-container': {
+                    margin: 0,
+                    width: '100%'
+                  },
+                  '& .MuiGrid-item': {
+                    padding: { xs: '4px', sm: '8px' } // Reduced grid item padding
+                  },
+                  '& .MuiFormLabel-root': {
+                    fontSize: { xs: '0.875rem', sm: '1rem' } // Smaller labels on mobile
+                  },
+                  '& .MuiInputBase-root': {
+                    fontSize: { xs: '0.875rem', sm: '1rem' } // Smaller input text on mobile
                   }
                 }}>
                   {renderSectionComponent(section)}
@@ -1406,8 +1426,8 @@ const HospitalReportLandingPage = () => {
           
           {/* Dynamic Sections Selection */}
           <Box sx={{ 
-            mb: 5,
-            p: 3,
+            mb: { xs: 3, sm: 4, md: 5 }, // Reduced margin on mobile
+            p: { xs: 1, sm: 2, md: 3 }, // Reduced padding on mobile
             bgcolor: '#fffde7', 
             borderRadius: 2,
             border: '1px solid #e0e0e0' 
@@ -1428,8 +1448,8 @@ const HospitalReportLandingPage = () => {
               Select the specialized services offered by your facility to enable the corresponding form sections.
             </Typography>
             
-            <Paper sx={{ p: 3, mb: 3 }}>
-              <Grid container spacing={2}>
+            <Paper sx={{ p: { xs: 1, sm: 2, md: 3 }, mb: 3 }}>
+              <Grid container spacing={{ xs: 1, sm: 2 }}>
                 {dynamicSections.map(section => (
                   <Grid size={{ xs: 12, sm: 6, md: 4 }} key={section.id}>
                     <FormControlLabel
@@ -1440,6 +1460,12 @@ const HospitalReportLandingPage = () => {
                         />
                       }
                       label={section.name}
+                      sx={{ 
+                        margin: 0,
+                        '& .MuiFormControlLabel-label': {
+                          fontSize: { xs: '0.875rem', sm: '1rem' } // Smaller text on mobile
+                        }
+                      }}
                     />
                   </Grid>
                 ))}
@@ -1449,8 +1475,8 @@ const HospitalReportLandingPage = () => {
           
           {/* Render sections for enabled dynamic services */}
           <Box sx={{ 
-            mb: 4,
-            p: 3,
+            mb: { xs: 3, sm: 4 }, // Reduced margin on mobile
+            p: { xs: 1, sm: 2, md: 3 }, // Reduced padding on mobile
             bgcolor: '#fff8e1', 
             borderRadius: 2,
             border: '1px solid #ffe0b2'
@@ -1475,7 +1501,7 @@ const HospitalReportLandingPage = () => {
                 <Accordion 
                   key={section.id} 
                   sx={{ 
-                    mb: 2,
+                    mb: { xs: 1, sm: 2 }, // Reduced margin on mobile
                     boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
                     '&.Mui-expanded': {
                       border: '2px solid #ff9800',
@@ -1495,6 +1521,10 @@ const HospitalReportLandingPage = () => {
                       bgcolor: '#ffecb3',
                       '&.Mui-expanded': {
                         bgcolor: '#ffe082'
+                      },
+                      minHeight: { xs: '48px', sm: 'auto' }, // Reduce header height on mobile
+                      '& .MuiAccordionSummary-content': {
+                        margin: { xs: '8px 0', sm: '12px 0' } // Reduce margin in accordion summary
                       }
                     }}
                   >
@@ -1504,7 +1534,8 @@ const HospitalReportLandingPage = () => {
                         sx={{ 
                           fontWeight: 600,
                           color: '#e65100',
-                          mr: 1
+                          mr: 1,
+                          fontSize: { xs: '1rem', sm: '1.1rem' } // Slightly smaller on mobile
                         }}
                       >
                         S{index + 1}.
@@ -1513,38 +1544,49 @@ const HospitalReportLandingPage = () => {
                         variant="subtitle1" 
                         sx={{ 
                           fontWeight: 600,
-                          fontSize: '1.1rem'
+                          fontSize: { xs: '0.95rem', sm: '1.1rem' } // Slightly smaller on mobile
                         }}
                       >
                         {section.name}
                       </Typography>
                     </Box>
                   </AccordionSummary>
-                    <AccordionDetails sx={{ 
-                      padding: { xs: 1, sm: 3 }, // Reduced padding on mobile
-                      borderTop: '1px solid #ffe0b2',
-                      '& .MuiFormControl-root': { // Target form controls within
-                        width: '100%', // Ensure inputs take full width
-                        maxWidth: '100%'
-                      },
-                      '& .MuiBox-root': { // Target Box components within
-                        width: '100%',
-                        maxWidth: '100%'
-                      },
-                      '& .MuiGrid-root': { // Target Grid components within
-                        width: '100%',
-                        margin: 0
-                      }
-                    }}>
-                      {renderSectionComponent(section)}
-                    </AccordionDetails>
+                  <AccordionDetails sx={{ 
+                    padding: { xs: '8px', sm: '12px', md: '16px' }, // Greatly reduced padding
+                    borderTop: '1px solid #ffe0b2',
+                    '& .MuiFormControl-root': {
+                      width: '100%',
+                      maxWidth: '100%',
+                      marginBottom: { xs: '8px', sm: '16px' } // Less spacing between form elements
+                    },
+                    '& .MuiBox-root': {
+                      width: '100%',
+                      maxWidth: '100%',
+                      padding: { xs: 0, sm: '4px' } // Remove padding in nested boxes on mobile
+                    },
+                    '& .MuiGrid-container': {
+                      margin: 0,
+                      width: '100%'
+                    },
+                    '& .MuiGrid-item': {
+                      padding: { xs: '4px', sm: '8px' } // Reduced grid item padding
+                    },
+                    '& .MuiFormLabel-root': {
+                      fontSize: { xs: '0.875rem', sm: '1rem' } // Smaller labels on mobile
+                    },
+                    '& .MuiInputBase-root': {
+                      fontSize: { xs: '0.875rem', sm: '1rem' } // Smaller input text on mobile
+                    }
+                  }}>
+                    {renderSectionComponent(section)}
+                  </AccordionDetails>
                 </Accordion>
               ))
             }
             
             {/* No dynamic sections enabled message */}
             {!dynamicSections.some(section => enabledDynamicSections[section.id]) && (
-              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', p: 3 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', p: { xs: 1, sm: 3 } }}>
                 No specialized services selected. Enable services above to see their form sections here.
               </Typography>
             )}
@@ -1555,22 +1597,25 @@ const HospitalReportLandingPage = () => {
             display: 'flex', 
             justifyContent: 'space-between', 
             mt: 4,
-            position: 'fixed', // Changed from sticky to fixed
-            bottom: 0,
-            left: 0,
-            right: 0,
+            position: 'sticky', // Changed from fixed to sticky
+            bottom: 16,
             backgroundColor: 'background.paper',
-            padding: 2,
+            padding: { xs: 1, sm: 2 },
             zIndex: 1050,
-            boxShadow: '0px -2px 4px rgba(0,0,0,0.1)', // Add shadow for visual separation
-            maxWidth: 1024, // Match the container width
-            margin: '0 auto', // Center the buttons
-            boxSizing: 'border-box'
+            boxShadow: '0px -2px 4px rgba(0,0,0,0.1)',
+            width: '100%', // Use 100% of parent width instead of fixed maxWidth
+            boxSizing: 'border-box',
+            left: 'auto', // Remove left positioning
+            right: 'auto', // Remove right positioning
+            margin: '0', // Remove auto margins
+            borderRadius: 1
           }}>
             <Button
               variant="outlined"
               onClick={() => setActiveStep(0)}
               startIcon={<ArrowBack />}
+              size='small'
+              sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}
             >
               Previous
             </Button>
@@ -1579,8 +1624,10 @@ const HospitalReportLandingPage = () => {
               onClick={() => setActiveStep(2)}
               endIcon={<ArrowForward />}
               disabled={loading}
+              size='small'
+              sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}
             >
-              {loading ? <CircularProgress size={24} /> : 'Review & Submit'}
+              {loading ? <CircularProgress size={20} /> : 'Review & Submit'}
             </Button>
           </Box>
         </Paper>
@@ -1927,13 +1974,13 @@ const HospitalReportLandingPage = () => {
             pt: 2, 
             pb: 2,
             px: { xs: 1, sm: 2 },
-            overflowX: 'auto', // Allow horizontal scrolling if needed
+            overflowX: 'auto',
             '& .MuiStepConnector-line': {
-              minWidth: '20px' // Ensure connectors have minimum width
+              minWidth: '20px'
             }
           }} 
-          orientation="horizontal" // Change to horizontal orientation
-          alternativeLabel // Place labels below icons for better horizontal layout
+          orientation="horizontal"
+          alternativeLabel
         >
           {steps.map((label) => (
             <Step key={label}>
