@@ -21,6 +21,9 @@ import {
   CardContent,
   Button,
   FormControl,
+  Accordion, 
+  AccordionSummary, 
+  AccordionDetails,
   useMediaQuery, 
   useTheme 
 } from '@mui/material';
@@ -278,39 +281,32 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
   }, [existingValues]);
   
   // Find the specific categoryOptionCombo based on row and column values
-  const findCategoryOptionCombo = (
-    dataElementId: string,
-    rowValue: string, // Age category or "Value"
-    colValue: string  // Gender or individual name
-  ): CategoryOptionCombo | undefined => {
-    // Get the data element's categoryCombo.id first
+  const findCategoryOptionCombo = (dataElementId: string, row: string, column: string) => {
     const dataElement = q.find(de => de.uid === dataElementId);
     if (!dataElement || !dataElement.categoryCombo) return undefined;
     
     const ccId = dataElement.categoryCombo.id;
     
-    // Filter category option combos by this category combo ID first
+    // Filter category option combos by this category combo ID
     const relevantCocs = coc.filter(c => c.categoryCombo?.id === ccId);
     
     // Check if names contain commas
     const hasSplittableNames = relevantCocs.some(c => c.name.includes(','));
     
     if (hasSplittableNames) {
-      // Original logic for comma-separated names
+      // Find the combo where both row and column match
       return relevantCocs.find(c => {
         const parts = c.name.split(',').map(part => part.trim());
-        return parts.length >= 2 && 
-               parts[0] === colValue && 
-               parts[1] === rowValue;
+        return parts[0] === column && parts[1] === row;
       });
     } else {
-      // Alternative logic for single-value names
-      // For a single-row format, we just match the column name directly
-      if (rowValue === "Value") {
-        return relevantCocs.find(c => c.name === colValue);
+      // For non-splittable names, we're using the column as the name and "Value" as the row
+      if (row === "Value") {
+        return relevantCocs.find(c => c.name === column);
       }
-      return undefined;
     }
+    
+    return undefined;
   };
 
   // Create a matrix for a selected data element
@@ -687,7 +683,6 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
       period: period,
       dataElement: dataElementId,
       categoryOptionCombo: cocId,
-      attributeOptionCombo: '',
       value: stringifiedValue,
       comment: '',
       followup: false,
@@ -1089,8 +1084,10 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
     );
   };
 
+  // Render a mobile-optimized version of the matrix table
   const renderMobileDisaggregatedTable = (dataElementId: string) => {
     const matrix = matrices[dataElementId];
+    const dataElement = q.find(de => de.uid === dataElementId);
     
     if (!matrix || matrix.rows.length === 0 || matrix.columns.length === 0) {
       return (
@@ -1103,62 +1100,60 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
     }
     
     return (
-      <TableContainer component={Paper} sx={{ mb: 3, boxShadow: 2 }}>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell 
-                sx={{ 
-                  fontWeight: 'bold', 
-                  bgcolor: 'primary.main', 
-                  color: 'white',
-                  width: '40%'
-                }}
-              >
-                Category
-              </TableCell>
-              <TableCell 
-                sx={{ 
-                  fontWeight: 'bold', 
-                  bgcolor: 'primary.main', 
-                  color: 'white',
-                  width: '60%'
-                }}
-              >
-                Value
-              </TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {matrix.rows.map((row) => (
-              matrix.columns.map((column, index) => {
-                const coc = findCategoryOptionCombo(dataElementId, row, column);
-                if (!coc) return null;
-                
-                return (
-                  <TableRow key={`${row}-${column}`} sx={{ '&:nth-of-type(even)': { bgcolor: 'action.hover' } }}>
-                    <TableCell component="th" scope="row" sx={{ fontWeight: 'medium' }}>
-                      <Typography variant="body2" fontWeight="medium">{row}</Typography>
-                      <Typography variant="caption" color="text.secondary">{column}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      {renderCellInputField(dataElementId, coc.id)}
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+      <Box sx={{ mb: 3 }}>
+        {matrix.rows.map((row, rowIndex) => (
+          <Accordion 
+            key={`row-${rowIndex}`}
+            expanded={!(collapsedRows[dataElementId]?.[row] ?? false)}
+            onChange={() => toggleRowCollapse(dataElementId, row)}
+            sx={{ 
+              mb: 1,
+              boxShadow: 2,
+              '&:before': {
+                display: 'none',
+              },
+            }}
+          >
+            <AccordionSummary
+              expandIcon={<ExpandMoreIcon />}
+              sx={{ 
+                bgcolor: 'primary.light', 
+                color: 'primary.contrastText',
+                '&.Mui-expanded': {
+                  minHeight: 48,
+                },
+              }}
+            >
+              <Typography fontWeight="medium">{row}</Typography>
+            </AccordionSummary>
+            <AccordionDetails sx={{ p: 2 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {matrix.columns.map((column, colIndex) => {
+                  const coc = findCategoryOptionCombo(dataElementId, row, column);
+                  if (!coc) return null;
+                  
+                  return (
+                    <Card key={`cell-${colIndex}`} sx={{ boxShadow: 1 }}>
+                      <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                          {column}
+                        </Typography>
+                        {renderCellInputField(dataElementId, coc.id)}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </Box>
+            </AccordionDetails>
+          </Accordion>
+        ))}
+      </Box>
     );
   };
 
-  // Render the complete matrix table for a specific data element
-  const renderDisaggregatedTable = (dataElementId: string) => {
+  const renderDesktopDisaggregatedTable = (dataElementId: string) => {
     const matrix = matrices[dataElementId];
     
-    // If no disaggregation is available, render a message
     if (!matrix || matrix.rows.length === 0 || matrix.columns.length === 0) {
       return (
         <Box sx={{ mb: 3 }}>
@@ -1192,7 +1187,7 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
                   sx={{ 
                     fontWeight: 'bold', 
                     bgcolor: 'primary.main', 
-                    color: 'white !important', // Force white text
+                    color: 'white !important',
                     minWidth: '120px',
                     '& .MuiTableCell-root': {
                       color: 'white !important'
@@ -1206,41 +1201,38 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
           </TableHead>
           <TableBody>
             {matrix.rows.map((row, rowIndex) => (
-              <Fragment key={rowIndex}>
-                <TableRow sx={{ '&:nth-of-type(even)': { bgcolor: 'action.hover' } }}>
-                  <TableCell 
-                    component="th" 
-                    scope="row"
-                    sx={{ 
-                      fontWeight: 'bold', 
-                      width: '20%'
-                    }}
-                  >
-                    {row}
-                  </TableCell>
-                  {!isComponentCollapsed[dataElementId] && matrix.columns.map((column, colIndex) => {
-                    // Column is gender and row is age category
-                    const coc = findCategoryOptionCombo(dataElementId, row, column);
-                    if (!coc) {
-                      console.warn(`Could not find category option combo for: ${column}, ${row}`);
-                      return <TableCell key={colIndex}></TableCell>;
-                    }
-                    
-                    return (
-                      <TableCell key={colIndex} align="center" sx={{ p: 1, minWidth: '120px' }}>
-                        {renderCellInputField(dataElementId, coc.id)}
-                      </TableCell>
-                    );
-                  })}
-                  {isComponentCollapsed[dataElementId] && (
-                    <TableCell colSpan={matrix.columns.length} align="center">
-                      <Typography variant="body2" color="text.secondary">
-                        Matrix collapsed. Click the expand icon to show fields.
-                      </Typography>
+              <TableRow key={rowIndex} sx={{ '&:nth-of-type(even)': { bgcolor: 'action.hover' } }}>
+                <TableCell 
+                  component="th" 
+                  scope="row"
+                  sx={{ 
+                    fontWeight: 'bold', 
+                    width: '20%'
+                  }}
+                >
+                  {row}
+                </TableCell>
+                {!isComponentCollapsed[dataElementId] && matrix.columns.map((column, colIndex) => {
+                  const coc = findCategoryOptionCombo(dataElementId, row, column);
+                  if (!coc) {
+                    console.warn(`Could not find category option combo for: ${column}, ${row}`);
+                    return <TableCell key={colIndex}></TableCell>;
+                  }
+                  
+                  return (
+                    <TableCell key={colIndex} align="center" sx={{ p: 1, minWidth: '120px' }}>
+                      {renderCellInputField(dataElementId, coc.id)}
                     </TableCell>
-                  )}
-                </TableRow>
-              </Fragment>
+                  );
+                })}
+                {isComponentCollapsed[dataElementId] && (
+                  <TableCell colSpan={matrix.columns.length} align="center">
+                    <Typography variant="body2" color="text.secondary">
+                      Matrix collapsed. Click the expand icon to show fields.
+                    </Typography>
+                  </TableCell>
+                )}
+              </TableRow>
             ))}
           </TableBody>
         </Table>
@@ -1248,30 +1240,12 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
     );
   };
 
-  // Calculate submission statistics for a specific data element
-  const getElementStats = (dataElementId: string) => {
-    const dataElement = q.find(de => de.uid === dataElementId);
-    if (!dataElement || !dataElement.categoryCombo) return undefined;
-    
-    const ccId = dataElement.categoryCombo.id;
-    const relevantCombos = coc.filter(c => c.categoryCombo?.id === ccId);
-    const totalCombos = relevantCombos.length;
-    const submittedCount = submittedCombos[dataElementId]?.length || 0;
-    const hasAllSubmitted = totalCombos > 0 && submittedCount === totalCombos;
-    
-    return {
-      totalCombos,
-      submittedCount,
-      hasAllSubmitted
-    };
-  };
-
   // Render matrix component for a specific data element
   const renderMatrixComponent = (dataElementId: string) => {
     const dataElement = q.find(de => de.uid === dataElementId);
     if (!dataElement) return null;
     
-    const { totalCombos, submittedCount, hasAllSubmitted } = getElementStats(dataElementId);
+    const { totalCombos, submittedCount, hasAllSubmitted } = getElementStats(dataElementId) || { totalCombos: 0, submittedCount: 0, hasAllSubmitted: false };
     
     return (
       <Box sx={{ width: '100%' }} key={dataElementId}>
@@ -1281,7 +1255,7 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
           sx={{ 
-            p: { xs: 1, sm: 4 },  // Less padding on mobile
+            p: { xs: 2, sm: 4 },  // Less padding on mobile
             borderRadius: 2, 
             boxShadow: 3,  
             mb: 4,
@@ -1334,23 +1308,39 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
             </Box>
           </Box>
           
-          {/* Render the matrix table */}
+          {/* Render appropriate table based on device size */}
           {!isComponentCollapsed[dataElementId] && (
             isMobile 
               ? renderMobileDisaggregatedTable(dataElementId)
-              : renderDisaggregatedTable(dataElementId)
+              : renderDesktopDisaggregatedTable(dataElementId)
           )}
         </Paper>
       </Box>
     );
   };
 
+  // Calculate submission statistics for a specific data element
+  const getElementStats = (dataElementId: string) => {
+    const dataElement = q.find(de => de.uid === dataElementId);
+    if (!dataElement || !dataElement.categoryCombo) return undefined;
+    
+    const ccId = dataElement.categoryCombo.id;
+    const relevantCombos = coc.filter(c => c.categoryCombo?.id === ccId);
+    const totalCombos = relevantCombos.length;
+    const submittedCount = submittedCombos[dataElementId]?.length || 0;
+    const hasAllSubmitted = totalCombos > 0 && submittedCount === totalCombos;
+    
+    return {
+      totalCombos,
+      submittedCount,
+      hasAllSubmitted
+    };
+  };
+
   // Main render function
   return (
     <Card sx={{ 
       width: '100%', 
-    //  maxWidth: '1024px',
-    //  overflowX: 'hidden', // Prevent horizontal scrolling
       WebkitOverflowScrolling: 'touch'
     }}>
       <CardHeader 
@@ -1401,7 +1391,7 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
       </Box>
       
       <CardContent sx={{ 
-        p: 3,
+        p: 2,
         WebkitOverflowScrolling: 'touch'
       }}>
         {/* Data element selection dropdown */}
