@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -13,6 +13,7 @@ import {
   InputAdornment,
   CircularProgress,
   Chip,
+  TextFieldProps,
   useMediaQuery, 
   useTheme 
 } from '@mui/material';
@@ -22,7 +23,8 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import SaveIcon from '@mui/icons-material/Save';
 import DomsSvgIcon from '../components/DomsSvgIcon';
 import ObjectAutoCompleteSelect from './ObjectAutoCompleteSelect';
-import { DataElement } from '../types';
+import { DataElement, DataSet, FieldStatus, ValueType } from '../types';
+import { getValidationRules, getCustomLogic, validateInput } from '../utils/validateLogic';
 
 export interface MetricData {
   [key: string]: any;
@@ -46,16 +48,9 @@ export interface DataElementGroup {
   orderid: number;
 }
 
-export interface MetadataProps {
-  dataElements?: DataElement[];
-  dataElementGroups?: DataElementGroup[];
-  organisations?: { id: string; name: string }[];
-  dataset?: { uid: string; name: string; periodtypeid: number; shortName: string; description: string }[];
-}
-
 interface TemplateMenuValueFormProps {
   q: DataElement[];
-  dataSet: string;
+  dataSet: DataSet;
   period: string;
   source: string;
   onSubmit: (data: string, dataElement: string, categoryOptionCombo: string) => Promise<{ success: boolean }>;
@@ -73,19 +68,22 @@ const TemplateMenuValueForm: React.FC<TemplateMenuValueFormProps> = ({
   source,
   onSubmit,
   templates: externalTemplates = [],
-  onNext,
-  onBack,
   existingValues,
   onValuesUpdate
 }) => {
-  // Main data state
   const [data, setData] = useState<FormData>({});
-  
-  // Keep track of submitted values
   const [submittedValues, setSubmittedValues] = useState<any[]>(existingValues || []);
-  
-  // Keep track of successfully submitted elements
   const [submittedElements, setSubmittedElements] = useState<string[]>([]);
+  const [activeTemplate, setActiveTemplate] = useState<string | null>(null);
+  const [selectedOption, setSelectedOption] = useState<DataElement | null>(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [savingBlocks, setSavingBlocks] = useState<Record<string, boolean>>({});
+  const [autoSaving, setAutoSaving] = useState<Record<string, boolean>>({});
+  const theme = useTheme();
+    const [status, setStatus] = useState<FieldStatus>(FieldStatus.IDLE);
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const [alertInfo, setAlertInfo] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' | 'info' | 'warning' });
   
   // Create main template and combine with external templates
   const mainTemplate: Template = { 
@@ -100,16 +98,56 @@ const TemplateMenuValueForm: React.FC<TemplateMenuValueFormProps> = ({
     ...externalTemplates
   ]);
   
-  const [activeTemplate, setActiveTemplate] = useState<string | null>(null);
-  const [selectedOption, setSelectedOption] = useState<DataElement | null>(null);
-  const [error, setError] = useState({ element: '' });
-  const [loading, setLoading] = useState(false);
-  const [savingBlocks, setSavingBlocks] = useState<Record<string, boolean>>({});
-  const [autoSaving, setAutoSaving] = useState<Record<string, boolean>>({});
-    const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const validationRules = useMemo(() => getValidationRules({
+    elementOption: selectedOption,
+    dataSet,
+    fieldName: 'value'
+  }), [q, dataSet]);
+
+  const customLogic = useMemo(() => getCustomLogic({
+    elementOption: selectedOption,
+    dataSet,
+  }), [q, dataSet]);
+
+  const getInputProps = useMemo(() => {
+    const props: any = {};
+    
+    switch (validationRules.valueType) {
+      case ValueType.INTEGER:
+        props.step = 1;
+        props.inputMode = 'numeric';
+        break;
+      case ValueType.INTEGER_POSITIVE:
+        props.step = 1;
+        props.min = 1;
+        props.inputMode = 'numeric';
+        break;
+      case ValueType.INTEGER_NEGATIVE:
+        props.step = 1;
+        props.max = -1;
+        props.inputMode = 'numeric';
+        break;
+      case ValueType.INTEGER_ZERO_OR_POSITIVE:
+        props.step = 1;
+        props.inputMode = 'numeric';
+        break;
+      case ValueType.PERCENTAGE:
+        props.step = 1;
+        props.min = 0;
+        props.max = 100;
+        props.inputMode = 'numeric';
+        break;
+      case ValueType.LETTER:
+        props.maxLength = 1;
+        props.pattern = '[A-Za-z]';
+        break;
+      default:
+        break;
+    }
+    
+    return props;
+  }, [validationRules.valueType]);
   
-  // Prepare data elements as options, sorted by dataElementOrder
   const elementOptions = q.sort((a, b) => a.dataElementOrder - b.dataElementOrder);
 
   const toTitleCase = (str) => {
@@ -157,7 +195,7 @@ const TemplateMenuValueForm: React.FC<TemplateMenuValueFormProps> = ({
   // Display names for the elements
   const getElementLabel = (shortname: string): string => {
     const option = elementOptions.find(opt => opt.shortName.toLowerCase() === shortname.toLowerCase());
-    return option?.name || shortname;
+    return option?.shortName || shortname;
   };
 
   // Handle value change
@@ -173,7 +211,7 @@ const TemplateMenuValueForm: React.FC<TemplateMenuValueFormProps> = ({
     if (!value) return;
     const normalizedKey = value.shortName.toLowerCase();
     if (Object.prototype.hasOwnProperty.call(data, normalizedKey)) {
-      setError({ element: 'This element already exists!' });
+      setError('This element already exists!');
       return;
     }
     
@@ -183,7 +221,7 @@ const TemplateMenuValueForm: React.FC<TemplateMenuValueFormProps> = ({
       [normalizedKey]: value.value || ''
     }));
     
-    setError({ element: '' });
+    setError('');
     setSelectedOption(null);
   };
 
@@ -297,14 +335,23 @@ const TemplateMenuValueForm: React.FC<TemplateMenuValueFormProps> = ({
       // Get the current value
       const currentValue = data[elementKey];
       
+      // Validate before saving
+      const validationError = validateInput(currentValue, validationRules, data, customLogic);
+      if (validationError) {
+        setAlertInfo({
+          open: true,
+          message: validationError,
+          severity: 'error'
+        });
+        return;
+      }
+      
       // Then try to save via parent component's onSubmit handler
       if (onSubmit) {
         try {
-          // Pass value, data element ID, and category option combo
           const result = await onSubmit(currentValue, elementOption.uid, 'HllvX50cXC0');
           
           if (result.success) {
-            // Mark as successfully submitted
             if (!submittedElements.includes(elementKey)) {
               setSubmittedElements(prev => [...prev, elementKey]);
             }
@@ -351,82 +398,143 @@ const TemplateMenuValueForm: React.FC<TemplateMenuValueFormProps> = ({
   };
 
   // Create input field for an element 
-  // Create input field for an element 
-const renderValueInput = (elementKey: string) => {
-  const elementOption = elementOptions.find(
-    opt => opt.shortName.toLowerCase() === elementKey.toLowerCase()
-  );
+  const renderValueInput = (elementKey: string) => {
+    const elementOption = elementOptions.find(
+      opt => opt.shortName.toLowerCase() === elementKey.toLowerCase()
+    );
+    
+    if (!elementOption) {
+      return null;
+    }
+    
+    // Get current value
+    const currentValue = data[elementKey] || '';
+    
+    const errorMessage = validateInput(currentValue, validationRules, data, customLogic);
+    
+    const getStatusIcon = () => {
+      if (savingBlocks[elementKey]) return <CircularProgress size={20} />;
+      if (autoSaving[elementKey]) return <CircularProgress size={20} />;
+      if (submittedElements.includes(elementKey)) return <CheckCircleIcon color="success" />;
+      return <DomsSvgIcon>{elementOption.iconText || 'material-outline:edit'}</DomsSvgIcon>;
+    };
+    
+    const getInputType = () => {
+      if (!validationRules.valueType) return 'text';
+      
+      switch (validationRules.valueType) {
+        case ValueType.INTEGER:
+        case ValueType.INTEGER_POSITIVE:
+        case ValueType.INTEGER_NEGATIVE:
+        case ValueType.INTEGER_ZERO_OR_POSITIVE:
+        case ValueType.NUMBER:
+        case ValueType.PERCENTAGE:
+          return 'number';
+        case ValueType.DATE:
+          return 'date';
+        case ValueType.BOOLEAN:
+          return 'checkbox';
+        case ValueType.EMAIL:
+          return 'email';
+        case ValueType.URL:
+          return 'url';
+        case ValueType.PHONE_NUMBER:
+        case ValueType.TEXT:
+        default:
+          return 'text';
+      }
+    };
+
+    const startAdornment = (
+      <InputAdornment position="start">
+        {getStatusIcon()}
+      </InputAdornment>
+    );
   
-  if (!elementOption) {
-    return null;
-  }
-  
-  // Get current value - very important for persistence
-  const currentValue = data[elementKey] || '';
-  
-  // Determine status icon based on the current state
-  const getStatusIcon = () => {
-    if (savingBlocks[elementKey]) return <CircularProgress size={20} />;
-    if (autoSaving[elementKey]) return <CircularProgress size={20} />;
-    if (submittedElements.includes(elementKey)) return <CheckCircleIcon color="success" />;
-    return <DomsSvgIcon>{elementOption.iconText || 'material-outline:edit'}</DomsSvgIcon>;
-  };
-  
-  return (
-    <Grid container spacing={2}>
-      <Grid size={{ xs: 12, sm: 8, md: 6 }}>
-        <TextField
-          label={elementOption.name}
-          type={elementOption.fieldType || 'text'}
-          value={currentValue}
-          onChange={(e) => handleChange(elementKey, e.target.value)}
-          onBlur={() => {
-            if (data[elementKey] && !savingBlocks[elementKey] && !autoSaving[elementKey]) {
-              setAutoSaving(prev => ({ ...prev, [elementKey]: true }));
-              
-              // Add a small delay before auto-saving
-              setTimeout(() => {
-                handleBlockSubmit(elementKey).finally(() => {
+    // For percentage type, create end adornment
+    const endAdornment = validationRules.valueType === ValueType.PERCENTAGE ? (
+      <InputAdornment position="end">%</InputAdornment>
+    ) : undefined;
+
+    const textFieldProps: TextFieldProps = {
+      id: `input-${elementKey}`,
+      name: elementKey,
+      fullWidth: true,
+      variant: elementOption.formStyles.variant || 'outlined',
+      size: elementOption.formStyles.fieldSize || 'medium',
+      label: elementOption.shortName,
+      placeholder: elementOption.formStyles.placeholder || `Enter here`,
+      type: getInputType(),
+      value: currentValue,
+      error: status === FieldStatus.ERROR,
+      disabled: savingBlocks[elementKey] || autoSaving[elementKey],
+      required: validationRules.required,
+      slotProps: {
+        input: {
+          ...getInputProps,
+          startAdornment,
+          endAdornment
+        }
+      },
+      sx: {
+        '& .MuiInputBase-root': {
+          minHeight: '56px'
+        },
+        backgroundColor: 'white'
+      }
+    };
+    
+    return (
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, sm: 8, md: 6 }}>
+          <TextField
+            {...textFieldProps}
+            onChange={(e) => handleChange(elementKey, e.target.value)}
+            onBlur={() => {
+              if (data[elementKey] && !savingBlocks[elementKey] && !autoSaving[elementKey]) {
+                setAutoSaving(prev => ({ ...prev, [elementKey]: true }));
+                
+                // Validate before saving
+                const validationError = validateInput(
+                  data[elementKey], 
+                  validationRules, 
+                  data, 
+                  customLogic
+                );
+                
+                if (validationError) {
+                  setAlertInfo({
+                    open: true,
+                    message: validationError,
+                    severity: 'error'
+                  });
                   setAutoSaving(prev => ({ ...prev, [elementKey]: false }));
-                });
-              }, 800);
+                  return;
+                }
+                
+                // Proceed with saving if validation passes
+                setTimeout(() => {
+                  handleBlockSubmit(elementKey).finally(() => {
+                    setAutoSaving(prev => ({ ...prev, [elementKey]: false }));
+                  });
+                }, 800);
+              }
+            }}
+            helperText={
+              errorMessage ? errorMessage :
+              savingBlocks[elementKey] ? "Saving..." :
+              autoSaving[elementKey] ? "Auto-saving..." :
+              submittedElements.includes(elementKey) ? "Saved" : ""
             }
-          }}
-          variant="outlined"
-          fullWidth
-          size="medium"
-          disabled={savingBlocks[elementKey] || autoSaving[elementKey]}
-          helperText={
-            savingBlocks[elementKey] ? "Saving..." :
-            autoSaving[elementKey] ? "Auto-saving..." :
-            submittedElements.includes(elementKey) ? "Saved" : ""
-          }
-          slotProps={{
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  {getStatusIcon()}
-                </InputAdornment>
-              )
-            }
-          }}
-          sx={{
-            '& .MuiInputBase-root': {
-              minHeight: '56px'
-            },
-            backgroundColor: 'white'
-          }}
-        />
+          />
+        </Grid>
       </Grid>
-    </Grid>
-  );
-};
+    );
+  };
 
   return (
     <Card sx={{ 
       width: '100%', 
-    //  maxWidth: '1024px',
-    //  overflowX: 'hidden', // Prevent horizontal scrolling
       WebkitOverflowScrolling: 'touch'
     }}>
       <CardHeader 
@@ -469,12 +577,10 @@ const renderValueInput = (elementKey: string) => {
       
       <CardContent sx={{ 
         p: 3,
-    //    maxHeight: isMobile ? '70vh' : 'none',
-    //    overflow: isMobile ? 'auto' : 'visible',
         WebkitOverflowScrolling: 'touch'
       }}>
         <Box sx={{ mb: 3, display: 'flex', alignItems: 'flex-end', gap: 1 }}>
-          <FormControl fullWidth error={!!error.element}>
+          <FormControl fullWidth error={!!error}>
             <ObjectAutoCompleteSelect
               freeSolo={false}
               options={availableOptions}
@@ -484,8 +590,8 @@ const renderValueInput = (elementKey: string) => {
               valueField="uid"
               label="Select"
               id="element-select"
-              error={!!error.element}
-              helperText={error.element}
+              error={!!error}
+              helperText={error}
               disabled={loading}
             />
           </FormControl>
@@ -505,8 +611,7 @@ const renderValueInput = (elementKey: string) => {
               </Paper>
             ) : (
               Object.entries(data).map(([elementKey]) => {
-                const isSubmitted = submittedElements.includes(elementKey);
-                const isBeingSaved = savingBlocks[elementKey] || autoSaving[elementKey];
+                const option = elementOptions.find(opt => opt.shortName.toLowerCase() === elementKey.toLowerCase());
                 
                 return (
                   <Paper 
@@ -523,7 +628,7 @@ const renderValueInput = (elementKey: string) => {
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <Typography variant="h6">
-                          {getElementLabel(elementKey)}
+                          {option?.name}
                         </Typography>
                         {savingBlocks[elementKey] ? (
                           <Chip 
@@ -568,28 +673,28 @@ const renderValueInput = (elementKey: string) => {
             )}
           </Box>
         )}
+          {alertInfo.open && (
+            <Box 
+              sx={{ 
+                mt: 2, 
+                p: 2, 
+                bgcolor: 
+                  alertInfo.severity === 'success' ? '#e8f5e9' : 
+                  alertInfo.severity === 'error' ? '#ffebee' : 
+                  alertInfo.severity === 'warning' ? '#fff8e1' : 
+                  alertInfo.severity === 'info' ? '#e3f2fd' : '#e3f2fd',
+                borderRadius: 1,
+                color: 
+                  alertInfo.severity === 'success' ? '#2e7d32' : 
+                  alertInfo.severity === 'error' ? '#c62828' : 
+                  alertInfo.severity === 'warning' ? '#f57f17' : 
+                  alertInfo.severity === 'info' ? '#1565c0' : '#1565c0'
+              }}
+            >
+              <Typography>{alertInfo.message}</Typography>
+            </Box>
+          )}
       </CardContent>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3, mb: 3, px: 3, width: '100%' }}>
-        {onBack && (
-          <Button
-            variant="outlined"
-            onClick={onBack}
-            disabled={Object.values(savingBlocks).some(Boolean)}
-          >
-            Back
-          </Button>
-        )}
-        {onNext && (
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={onNext}
-            disabled={submittedElements.length === 0 || Object.values(savingBlocks).some(Boolean)}
-          >
-            Next
-          </Button>
-        )}
-      </Box>
     </Card>
   );
 };

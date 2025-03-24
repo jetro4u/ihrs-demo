@@ -1,4 +1,4 @@
-import { Access, FieldType, Sharing, PeriodType, QueryModifiers, Translation, AggregationType } from './shared';
+import { Access, FieldType, Sharing, QueryModifiers, Translation } from './shared';
 type User = {}
 // TypeScript Interfaces for Metadata Structure
 export interface Metadata {
@@ -185,8 +185,6 @@ export interface DataElement {
 	organisationTypes?: string[];
 	dataElementGroups?: IdName;
 	categoryCombo?: ID;
-	metrics?: Record<string, any>;
-	value?: string;
   componentName: string
 	answered?: boolean;
 	disabled?: boolean;
@@ -194,7 +192,10 @@ export interface DataElement {
   optionSetValue: boolean
   queryMods: QueryModifiers
   commentOptionSet: OptionSet
-	validationRules?: ValidationRule;
+	metrics?: Record<string, any>;
+  value?: string;
+	customValidation?: Record<string, CustomValidation>;
+  customLogic?: string;
 	visibility?: Visibility;
   access: Access
   showSubmitIndicator: boolean
@@ -228,6 +229,23 @@ export interface DataElement {
 	valueTypeOptions: FileTypeValueOptions
   legendSet: LegendSet
   legendSets: LegendSet[]
+}
+
+export interface CustomValidation {
+  required: boolean;
+  default: any;
+  min: number;
+	max?: number | null;
+	regex?: string | null;
+	valueType: ValueType;
+	errorMessage?: string;
+}
+export interface ValidationRule {
+	required?: boolean;
+	min?: number | null;
+	max?: number | null;
+	regex?: string | null;
+	errorMessage?: string;
 }
 export type FileTypeValueOptions = {
     allowedContentTypes: Array<string>
@@ -387,7 +405,7 @@ export interface DataSet {
 	name: string;
   access?: Access
   aggregationType: AggregationType
-  categoryCombo: CategoryCombo;
+  categoryCombo: Partial<CategoryCombo>;
   compulsoryDataElementOperands?: DataElementOperand[]
   compulsoryFieldsCompleteOnly?: boolean
   dataEntryForm?: DataEntryForm
@@ -403,10 +421,12 @@ export interface DataSet {
 	formBlock?: string;
   formName: string
   formType: FormType
+	customValidation?: Record<string, CustomValidation>;
+  customLogic?: string;
   indicators: Indicator[]
   interpretations: Interpretation[]
-  legendSet: LegendSet
-  legendSets: LegendSet[]
+  legendSet: Partial<LegendSet>
+  legendSets: Partial<LegendSet[]>
   mobile: boolean
 	description?: string;
   dimensionItem: string
@@ -438,7 +458,7 @@ export interface DataSet {
 	  edit: string[];
 	  approve: string[];
 	};
-	workflow?: DataApprovalWorkflow;
+	workflow?: Partial<DataApprovalWorkflow>;
 	uiConfig?: {
 	  theme: string;
 	  logo: string;
@@ -455,7 +475,7 @@ export interface DataSet {
 	  onReject: boolean;
 	  recipients: string[];
 	};
-	organisations?: Organisation["id"];
+	organisations?: Organisation["id"][];
 }
 export type DataApprovalWorkflow = {
     access: Access
@@ -486,20 +506,20 @@ export type Section = {
 	id: string;
 	name: string;
 	type: "main" | "dynamic";
-    sortOrder: number
+  sortOrder: number
 	formBlock?: string;
-    access: Access
-    categoryCombos: CategoryCombo[]
-	dataElements: DataElement[]
-    indicators: Indicator[]
-    showColumnTotals: boolean
-    showRowTotals: boolean
-	totalQuestions: number
-	attemptedQuestions?: number
-	totalScore?: number
-	obtainedScore?: number
-	showScore: boolean;
-	dataSet: DataSet
+	customValidation?: Record<string, CustomValidation>;
+  customLogic?: string;
+  access?: Access
+  categoryCombos?: CategoryCombo[]
+	dataElements?: DataElement[]
+  indicators?: Indicator[]
+  showColumnTotals?: boolean
+  showRowTotals?: boolean
+	totalQuestions?: number
+	totalScore?: number;
+	showScore?: boolean;
+	dataSet?: Partial<DataSet>
 	enabled?: boolean;
 	description?: string;
 	collapsible?: boolean;
@@ -586,13 +606,6 @@ export enum FormType {
 	SECTION_MULTIORG = 'SECTION_MULTIORG',
 }
 
-interface ValidationRule {
-	required?: boolean;
-	min?: number | null;
-	max?: number | null;
-	regex?: string | null;
-	errorMessage?: string;
-}
   
 interface Visibility {
 	condition: string | null; // E.g., "dataElement.Bl34mYCskmv === 'Yes'"
@@ -879,6 +892,53 @@ export enum FieldStatus {
   SAVED = 'saved',
   ERROR = 'error',
   WARNING = 'warning'
+}
+
+export enum AggregationType {
+	SUM = 'SUM',
+	AVERAGE = 'AVERAGE',
+	AVERAGE_SUM_ORG_ = 'AVERAGE_SUM_ORG_',
+	LAST = 'LAST',
+	LAST_AVERAGE_ORG_ = 'LAST_AVERAGE_ORG_',
+	LAST_LAST_ORG_ = 'LAST_LAST_ORG_',
+	LAST_IN_PERIOD = 'LAST_IN_PERIOD',
+	LAST_IN_PERIOD_AVERAGE_ORG_ = 'LAST_IN_PERIOD_AVERAGE_ORG_',
+	FIRST = 'FIRST',
+	FIRST_AVERAGE_ORG_ = 'FIRST_AVERAGE_ORG_',
+	FIRST_FIRST_ORG_ = 'FIRST_FIRST_ORG_',
+	COUNT = 'COUNT',
+	STDDEV = 'STDDEV',
+	VARIANCE = 'VARIANCE',
+	MIN = 'MIN',
+	MAX = 'MAX',
+	MIN_SUM_ORG_ = 'MIN_SUM_ORG_',
+	MAX_SUM_ORG_ = 'MAX_SUM_ORG_',
+	NONE = 'NONE',
+	CUSTOM = 'CUSTOM',
+	DEFAULT = 'DEFAULT',
+}
+
+export enum PeriodType {
+	BI_MONTHLY = 'BiMonthly',
+	BI_WEEKLY = 'BiWeekly',
+	DAILY = 'Daily',
+	FINANCIAL_APRIL = 'FinancialApril',
+	FINANCIAL_JULY = 'FinancialJuly',
+	FINANCIAL_NOV = 'FinancialNov',
+	FINANCIAL_OCT = 'FinancialOct',
+	MONTHLY = 'Monthly',
+	QUARTERLY = 'Quarterly',
+	QUARTERLY_NOV = 'QuarterlyNov',
+	SIX_MONTHLY_APRIL = 'SixMonthlyApril',
+	SIX_MONTHLY_NOV = 'SixMonthlyNov',
+	SIX_MONTHLY = 'SixMonthly',
+	TWO_YEARLY = 'TwoYearly',
+	WEEKLY = 'Weekly',
+	WEEKLY_SATURDAY = 'WeeklySaturday',
+	WEEKLY_SUNDAY = 'WeeklySunday',
+	WEEKLY_THURSDAY = 'WeeklyThursday',
+	WEEKLY_WEDNESDAY = 'WeeklyWednesday',
+	YEARLY = 'Yearly',
 }
 
 export const QuestionTypes = {

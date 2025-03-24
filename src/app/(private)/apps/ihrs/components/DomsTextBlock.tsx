@@ -7,30 +7,22 @@ import {
   Paper,
   Chip,
   TextFieldProps,
+  Typography
 } from '@mui/material';
 import DomsSvgIcon from './DomsSvgIcon';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import WarningIcon from '@mui/icons-material/Warning';
-import { openDB } from 'idb';
-import { DataElement, ValueType, DataValuePayload } from '../types';
-
-// Status types for the field
-export enum FieldStatus {
-  IDLE = 'idle',
-  SAVING = 'saving',
-  SAVED = 'saved',
-  ERROR = 'error',
-  WARNING = 'warning'
-}
+import { DataElement, DataSet, ValueType, DataValuePayload, FieldStatus } from '../types';
+import { getValidationRules, getCustomLogic, validateInput } from '../utils/validateLogic';
 
 // Extended props interface
 interface DomsTextBlockProps {
   q: DataElement;
-  dataSet: string;
+  dataSet: DataSet;
   period: string;
   source: string;
-  onSubmit: (data: string, dataElement: string, categoryOptionCombo: string) => Promise<{ success: boolean }>;
+  onSubmit: (data: string, categoryOptionCombo: string) => Promise<{ success: boolean }>;
   existingValues?: any[];
   onValuesUpdate?: (values: any[]) => void;
   readOnly?: boolean;
@@ -58,19 +50,28 @@ const DomsTextBlock: FC<DomsTextBlockProps> = ({
 }) => {
   // States for managing form data and submission status
   const [value, setValue] = useState<string>('');
+  const [allValues, setAllValues] = useState<Record<string, any>>({});
   const [submitted, setSubmitted] = useState<boolean>(false);
   const [status, setStatus] = useState<FieldStatus>(FieldStatus.IDLE);
   const [error, setError] = useState<string>('');
   const [autoSaving, setAutoSaving] = useState<boolean>(false);
-  
   const dataElementId = q.uid;
   const valueType = q.valueType;
-  const validationRules = q.validationRules || {};
   const showSubmitIndicator = q.showSubmitIndicator || true;
   const disableAnimation = q.disableAnimation || false;
   const autoSaveDelay = q.autoSaveDelay || 300;
 
-  // Initialize value from existingValues
+  const validationRules = useMemo(() => getValidationRules({
+    elementOption: q,
+    dataSet,
+    fieldName: 'value'
+  }), [q, dataSet]);
+
+  const customLogic = useMemo(() => getCustomLogic({
+    elementOption: q,
+    dataSet,
+  }), [q, dataSet]);
+  
   useEffect(() => {
     if (existingValues && existingValues.length > 0) {
       const existingValue = existingValues.find(v => v.dataElement === dataElementId);
@@ -78,6 +79,14 @@ const DomsTextBlock: FC<DomsTextBlockProps> = ({
         setValue(existingValue.value);
         setSubmitted(true);
       }
+    }
+
+    if (existingValues && existingValues.length > 0) {
+      const values: Record<string, any> = {};
+      existingValues.forEach(v => {
+        values[v.dataElement] = v.value;
+      });
+      setAllValues(values);
     }
   }, [existingValues, dataElementId]);
 
@@ -148,127 +157,30 @@ const DomsTextBlock: FC<DomsTextBlockProps> = ({
     }
     
     return props;
-}, [valueType]);
-
-const validateInput = (input: string | number): string => {
-  // If empty and required
-  if ((input === '' || input === null || input === undefined) && validationRules.required) {
-    return 'This field is required';
-  }
-
-  // Type-specific validation
-  switch (valueType) {
-    case ValueType.EMAIL:
-      if (input && !/\S+@\S+\.\S+/.test(String(input))) {
-        return 'Please enter a valid email address';
-      }
-      break;
-    case ValueType.URL:
-      try {
-        if (input) {
-          new URL(String(input));
-        }
-      } catch (e) {
-        return 'Please enter a valid URL';
-      }
-      break;
-    case ValueType.PHONE_NUMBER:
-      if (input && !/^\+?[0-9\s\-()]{8,20}$/.test(String(input))) {
-        return 'Please enter a valid phone number';
-      }
-      break;
-    case ValueType.INTEGER:
-    case ValueType.INTEGER_POSITIVE:
-    case ValueType.INTEGER_NEGATIVE:
-    case ValueType.INTEGER_ZERO_OR_POSITIVE:
-    case ValueType.NUMBER:
-    case ValueType.PERCENTAGE:
-      // Skip validation if empty and not required
-      if (input === '' && !validationRules.required) {
-        return '';
-      }
-      
-      const num = typeof input === 'number' ? input : Number(input);
-      
-      if (isNaN(num)) {
-        return 'Please enter a valid number';
-      }
-      
-      if (validationRules.min !== undefined && validationRules.min !== null && num < validationRules.min) {
-        return `Value must be at least ${validationRules.min}`;
-      }
-      
-      if (validationRules.max !== undefined && validationRules.max !== null && num > validationRules.max) {
-        return `Value must be at most ${validationRules.max}`;
-      }
-      
-      // Special cases for different numeric types
-      if (valueType === ValueType.INTEGER && !Number.isInteger(num)) {
-        return 'Value must be an integer';
-      }
-      
-      if (valueType === ValueType.INTEGER_POSITIVE && num <= 0) {
-        return 'Value must be a positive integer';
-      }
-      
-      if (valueType === ValueType.INTEGER_NEGATIVE && num >= 0) {
-        return 'Value must be a negative integer';
-      }
-      
-      if (valueType === ValueType.INTEGER_ZERO_OR_POSITIVE && num < 0) {
-        return 'Value must be zero or a positive integer';
-      }
-      
-      if (valueType === ValueType.PERCENTAGE && (num < 0 || num > 100)) {
-        return 'Percentage must be between 0 and 100';
-      }
-      break;
-    case ValueType.LETTER:
-      if (input && (typeof input !== 'string' || !/^[A-Za-z]$/.test(input))) {
-        return 'Please enter a single letter';
-      }
-      break;
-    default:
-      break;
-  }
-  
-  // Regex validation if provided
-  if (validationRules.regex && input) {
-    const regex = new RegExp(validationRules.regex);
-    if (!regex.test(String(input))) {
-      return validationRules.errorMessage || 'Invalid format';
-    }
-  }
-  
-  // Custom validation if provided
-  if (customValidation) {
-    const customError = customValidation(input);
-    if (customError) {
-      return customError;
-    }
-  }
-  
-  return '';
-};
+  }, [valueType]);
 
   // Handle input change
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
     const newValue = event.target.value;
     console.log('Input value:', newValue, 'Type:', typeof newValue);
     
-    // Always store as string in the state (to be compatible with TextField)
-    // but handle '0' correctly during validation
     setValue(newValue);
     setStatus(FieldStatus.IDLE);
     
-    // For validation, convert to number if it's a numeric field
-  let valueForValidation: string | number = newValue;
+    let valueForValidation: string | number = newValue;
     if (getInputType === 'number' && newValue !== '') {
       valueForValidation = Number(newValue);
     }
     
-    // Run validation
-    const validationError = validateInput(valueForValidation);
+    const updatedValues = { ...allValues, [dataElementId]: valueForValidation };
+    
+    const validationError = validateInput(
+      valueForValidation, 
+      validationRules, 
+      updatedValues, 
+      customLogic
+    );
+    
     setError(validationError);
     
     if (onValidationStateChange) {
@@ -280,27 +192,6 @@ const validateInput = (input: string | number): string => {
     }
   };
 
-  // Prepare payload for saving
-  const preparePayload = (): DataValuePayload => {
-    const stringifiedValue = 
-      typeof value === 'object' ? JSON.stringify(value) : 
-      value !== null && value !== undefined ? String(value) : '';
-    
-    return {
-      //uuid: crypto.randomUUID(),
-      source: source || localStorage.getItem('ihrs-selected-org') || '',
-      period: period || localStorage.getItem('ihrs-selected-period') || '',
-      dataElement: dataElementId,
-      categoryOptionCombo: q.categoryCombo?.id || 'HllvX50cXC0',
-      attributeOptionCombo: '',
-      value: stringifiedValue,
-      comment: q.formStyles.helpText || 'ok',
-      followup: false,
-      date: new Date()
-    };
-  };
-
-  // Handle saving data
   const handleSaveData = async () => {
     if (error) {
       setStatus(FieldStatus.ERROR);
@@ -315,7 +206,6 @@ const validateInput = (input: string | number): string => {
     try {
       setStatus(FieldStatus.SAVING);
       
-      // Try to save to server
       if (onSubmit) {
         try {
           const stringifiedValue = 
@@ -334,7 +224,6 @@ const validateInput = (input: string | number): string => {
           setError('Saved locally, will sync later');
         }
       } else {
-        // Mark as saved even without server save
         setSubmitted(true);
         setStatus(FieldStatus.SAVED);
       }
@@ -345,7 +234,6 @@ const validateInput = (input: string | number): string => {
     }
   };
 
-  // Handle blur event for auto-saving
   const handleElementBlur = () => {
     // Only autosave if there's a value and no errors
     if (value && !error && !autoSaving) {
@@ -365,10 +253,9 @@ const validateInput = (input: string | number): string => {
     }
   };
 
-  // Get TextField helper text
   const getHelperText = (): string => {
-    if (q.formStyles.helpText) return q.formStyles.helpText;
-    if (error) return error;
+    //if (q.formStyles.helpText) return q.formStyles.helpText;
+    if (error) return `${error}${q.formStyles.helpText ? " - " + q.formStyles.helpText : ""}`;
     if (autoSaving) return "Auto-saving...";
     if (status === FieldStatus.SAVING) return "Saving...";
     if (status === FieldStatus.SAVED) return "Saved";
@@ -376,7 +263,6 @@ const validateInput = (input: string | number): string => {
     return "";
   };
 
-  // Get status icon
   const getStatusIcon = (): ReactNode => {
     switch (status) {
       case FieldStatus.SAVED:
@@ -394,19 +280,16 @@ const validateInput = (input: string | number): string => {
     }
   };
 
-  // Create startAdornment with icon
   const startAdornment = (
     <InputAdornment position="start">
       {getStatusIcon()}
     </InputAdornment>
   );
 
-  // For percentage type, create end adornment
   const endAdornment = valueType === ValueType.PERCENTAGE ? (
     <InputAdornment position="end">%</InputAdornment>
   ) : undefined;
 
-  // Define TextField props
   const textFieldProps: TextFieldProps = {
     id: `input-${dataElementId}`,
     name: dataElementId,
@@ -414,13 +297,12 @@ const validateInput = (input: string | number): string => {
     variant: q.formStyles.variant || 'outlined',
     size: q.formStyles.fieldSize || 'medium',
     label: q.shortName,
-    placeholder: q.formStyles.placeholder || `Enter ${q.shortName || q.name}`,
+    placeholder: q.formStyles.placeholder || `Enter here`,
     type: getInputType,
     value,
     onChange: handleInputChange,
     onBlur: handleElementBlur,
     error: status === FieldStatus.ERROR,
-    helperText: getHelperText(),
     disabled: readOnly || status === FieldStatus.SAVING || autoSaving,
     required: validationRules.required,
     inputRef,
@@ -430,7 +312,6 @@ const validateInput = (input: string | number): string => {
       bgcolor: 'white',
       ...(q.formStyles.sx || {})
     },
-    // Replace InputProps with slotProps for MUI v7
     slotProps: {
       input: {
         ...getInputProps,
@@ -446,7 +327,6 @@ const validateInput = (input: string | number): string => {
     </Box>
   );
 
-  // Render component
   const content = (
     <Box 
       sx={{ 
@@ -473,6 +353,19 @@ const validateInput = (input: string | number): string => {
       {titleDescription}
       
       <TextField {...textFieldProps} />
+        
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between',
+          mt: 0.5
+        }}>
+          {(error || status === FieldStatus.WARNING) && (
+            <Typography variant="caption" color={error ? "error" : "text.secondary"}>
+              {getHelperText()}
+            </Typography>
+          )}
+        </Box>
     </Box>
   );
 

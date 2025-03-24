@@ -1,0 +1,37 @@
+{
+	"metrics": {
+	  "cases": null,
+	  "death": null,
+	  "referredCases": null
+	},
+	"customValidation": {
+	  "cases": {
+		"required": true,
+		"default": null,
+		"min": 0,
+		"max": null,
+		"regex": null,
+		"valueType": "INTEGER_ZERO_OR_POSITIVE",
+		"errorMessage": "Cases must be a non-negative integer"
+	  },
+	  "death": {
+		"required": true,
+		"default": null,
+		"min": 0,
+		"max": null,
+		"regex": null,
+		"valueType": "INTEGER_ZERO_OR_POSITIVE",
+		"errorMessage": "Deaths must be a non-negative integer"
+	  },
+	  "referredCases": {
+		"required": true,
+		"default": null,
+		"min": 0,
+		"max": null,
+		"regex": null,
+		"valueType": "INTEGER_ZERO_OR_POSITIVE",
+		"errorMessage": "Referred cases must be a non-negative integer"
+	  }
+	},
+	"customLogic": "{\"validations\":[{\"field\":\"death\",\"compareTo\":\"cases\",\"operator\":\"<=\",\"message\":\"Deaths cannot exceed total cases\"},{\"field\":\"referredCases\",\"compareTo\":\"cases\",\"operator\":\"<=\",\"message\":\"Referred cases cannot exceed total cases\"}]}"
+  }

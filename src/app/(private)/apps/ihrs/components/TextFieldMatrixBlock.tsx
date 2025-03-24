@@ -1,4 +1,4 @@
-import { FC, useState, useEffect, ChangeEvent, useMemo, Fragment } from 'react';
+import { FC, useState, useEffect, ChangeEvent, useMemo, Fragment, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
   TextField,
@@ -23,16 +23,17 @@ import {
   AccordionDetails,
   Card,
   CardContent,
-  Divider,
-  Grid
+  Divider
 } from '@mui/material';
+import Grid from '@mui/material/Grid2';
 import DomsSvgIcon from './DomsSvgIcon';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ErrorIcon from '@mui/icons-material/Error';
 import WarningIcon from '@mui/icons-material/Warning';
-import { DataElement, ValueType, CategoryOptionCombo, FieldStatus } from '../types';
+import { DataElement, DataSet, ValueType, CategoryOptionCombo, FieldStatus } from '../types';
+import { getValidationRules, getCustomLogic, validateInput } from '../utils/validateLogic';
 
 // Helper types to manage aggregated data
 type CategoryMatrix = {
@@ -40,23 +41,10 @@ type CategoryMatrix = {
   columns: string[]; // e.g., "Female", "Male"
 };
 
-// Adapted from DomsTextBlock's DataValuePayload
-interface DataValuePayload {
-  source: string;
-  period: string;
-  dataElement: string;
-  categoryOptionCombo: string;
-  attributeOptionCombo: string;
-  value: string;
-  comment: string;
-  followup: boolean;
-  date: Date;
-}
-
 interface TextFieldMatrixBlockProps {
   q: DataElement;
+  dataSet: DataSet;
   coc: CategoryOptionCombo[];
-  dataSet: string;
   period: string;
   source: string;
   onSubmit?: (data: string, dataElement: string, categoryOptionCombo: string) => Promise<{ success: boolean }>;
@@ -70,6 +58,7 @@ interface TextFieldMatrixBlockProps {
 const TextFieldMatrixBlock: FC<TextFieldMatrixBlockProps> = ({
   q,
   coc,
+  dataSet,
   period,
   source,
   onSubmit,
@@ -89,18 +78,28 @@ const TextFieldMatrixBlock: FC<TextFieldMatrixBlockProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [autoSaving, setAutoSaving] = useState<Record<string, boolean>>({});
   const [submittedCombos, setSubmittedCombos] = useState<string[]>([]);
+  const [pendingSaves, setPendingSaves] = useState<Record<string, boolean>>({});
   
   const dataElementId = q.uid;
-  const valueType = q.valueType || ValueType.TEXT;
-  const validationRules = q.validationRules || {};
   const autoSaveDelay = q.autoSaveDelay || 400;
 
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [isComponentCollapsed, setIsComponentCollapsed] = useState(false);
+  const debouncedValidationTimers = useRef<Record<string, NodeJS.Timeout>>({});
+  
+  const validationRules = useMemo(() => getValidationRules({
+    elementOption: q,
+    dataSet,
+    fieldName: 'value'
+  }), [q, dataSet]);
 
-  // Initialize values from existingValues and sessionStorage
+  const customLogic = useMemo(() => getCustomLogic({
+    elementOption: q,
+    dataSet,
+  }), [q, dataSet]);
+  const valueType = validationRules.valueType || ValueType.TEXT;
+
   useEffect(() => {
-    // Then merge with existingValues if available
     if (existingValues && existingValues.length > 0) {
       const newValues: Record<string, string> = { ...values };
       const newStatuses: Record<string, FieldStatus> = { ...statuses };
@@ -108,7 +107,6 @@ const TextFieldMatrixBlock: FC<TextFieldMatrixBlockProps> = ({
 
       existingValues.forEach(val => {
         if (val.dataElement === dataElementId) {
-          // Only update if not already set from sessionStorage
           if (!newValues[val.categoryOptionCombo]) {
             newValues[val.categoryOptionCombo] = val.value;
             newStatuses[val.categoryOptionCombo] = FieldStatus.SAVED;
@@ -134,7 +132,6 @@ const TextFieldMatrixBlock: FC<TextFieldMatrixBlockProps> = ({
     coc.forEach(c => {
       const parts = c.name.split(',').map(part => part.trim());
       if (parts.length >= 2) {
-        // Columns are gender (parts[0]), rows are age categories (parts[1])
         colValues.add(parts[0]); // e.g., "Female"
         rowValues.add(parts[1]); // e.g., "0-1 year"
       }
@@ -153,9 +150,50 @@ const TextFieldMatrixBlock: FC<TextFieldMatrixBlockProps> = ({
     setExpandedRows(initialExpandedState);
   }, [coc, isMobile]);
 
-  // Get input type based on valueType (copied from DomsTextBlock)
+  // Add this useEffect to handle debounced input
+useEffect(() => {
+  const debounceTimers: Record<string, NodeJS.Timeout> = {};
+  
+  // Function to handle debounced input change
+  const handleDebouncedChange = (cocId: string, newValue: string) => {
+    if (debounceTimers[cocId]) {
+      clearTimeout(debounceTimers[cocId]);
+    }
+    
+    debounceTimers[cocId] = setTimeout(() => {
+      setValues(prev => ({ ...prev, [cocId]: newValue }));
+      
+      // Validate after setting
+      const validationError = validateMatrixInput(newValue);
+      if (validationError) {
+        setErrors(prev => ({ ...prev, [cocId]: validationError }));
+        if (onValidationStateChange) {
+          onValidationStateChange(false);
+        }
+      } else {
+        setErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors[cocId];
+          return newErrors;
+        });
+        if (onValidationStateChange) {
+          onValidationStateChange(true);
+        }
+      }
+    }, 200); // 200ms debounce time for typing
+  };
+  
+  handleInputChange;
+  
+  // Cleanup timers on unmount
+  return () => {
+    Object.values(debounceTimers).forEach(timer => clearTimeout(timer));
+  };
+}, []);
+
+  // Update getInputType to use the new validation rules
   const getInputType = useMemo(() => {
-    switch (valueType) {
+    switch (validationRules.valueType) {
       case ValueType.NUMBER:
       case ValueType.INTEGER:
       case ValueType.INTEGER_POSITIVE:
@@ -163,34 +201,28 @@ const TextFieldMatrixBlock: FC<TextFieldMatrixBlockProps> = ({
       case ValueType.INTEGER_ZERO_OR_POSITIVE:
       case ValueType.PERCENTAGE:
         return 'number';
+      case ValueType.DATE:
+        return 'date';
       default:
         return 'text';
     }
-  }, [valueType]);
+  }, [validationRules.valueType]);
 
-  // Get input props based on valueType (copied from DomsTextBlock)
+  // Update getInputProps to use the new validation rules
   const getInputProps = useMemo(() => {
     const props: any = {};
     
-    switch (valueType) {
+    switch (validationRules.valueType) {
       case ValueType.INTEGER:
-        props.step = 1;
-        props.inputMode = 'numeric';
-        break;
       case ValueType.INTEGER_POSITIVE:
-        props.step = 1;
-        props.min = 1;
-        props.inputMode = 'numeric';
-        break;
       case ValueType.INTEGER_NEGATIVE:
-        props.step = 1;
-        props.max = -1;
-        props.inputMode = 'numeric';
-        break;
       case ValueType.INTEGER_ZERO_OR_POSITIVE:
         props.step = 1;
-        props.min = 0;
         props.inputMode = 'numeric';
+        break;
+      case ValueType.NUMBER:
+        props.step = 'any';
+        props.inputMode = 'decimal';
         break;
       case ValueType.PERCENTAGE:
         props.step = 1;
@@ -202,70 +234,20 @@ const TextFieldMatrixBlock: FC<TextFieldMatrixBlockProps> = ({
         break;
     }
     
+    // Apply min/max constraints from validation rules if present
+    if (validationRules.min !== null && validationRules.min !== undefined) {
+      props.min = validationRules.min;
+    }
+    
+    if (validationRules.max !== null && validationRules.max !== undefined) {
+      props.max = validationRules.max;
+    }
+    
     return props;
-  }, [valueType]);
+  }, [validationRules]);
 
-  // Validate input based on valueType and validationRules (adapted from DomsTextBlock)
-  const validateInput = (input: any): string => {
-    // If empty and required
-    if ((input === '' || input === null || input === undefined) && validationRules.required) {
-      return 'This field is required';
-    }
-
-    // Type-specific validation
-    switch (valueType) {
-      case ValueType.INTEGER:
-      case ValueType.INTEGER_POSITIVE:
-      case ValueType.INTEGER_NEGATIVE:
-      case ValueType.INTEGER_ZERO_OR_POSITIVE:
-      case ValueType.NUMBER:
-        if (input !== '' && isNaN(Number(input))) {
-          return 'Please enter a valid number';
-        }
-        
-        const num = Number(input);
-        
-        if (validationRules.min !== undefined && validationRules.min !== null && num < validationRules.min) {
-          return `Value must be at least ${validationRules.min}`;
-        }
-        
-        if (validationRules.max !== undefined && validationRules.max !== null && num > validationRules.max) {
-          return `Value must be at most ${validationRules.max}`;
-        }
-        
-        if (valueType === ValueType.INTEGER_POSITIVE && num <= 0) {
-          return 'Value must be a positive integer';
-        }
-        
-        if (valueType === ValueType.INTEGER_NEGATIVE && num >= 0) {
-          return 'Value must be a negative integer';
-        }
-        
-        if (valueType === ValueType.INTEGER_ZERO_OR_POSITIVE && num < 0) {
-          return 'Value must be zero or a positive integer';
-        }
-        break;
-      default:
-        break;
-    }
-    
-    // Regex validation if provided
-    if (validationRules.regex && input) {
-      const regex = new RegExp(validationRules.regex);
-      if (!regex.test(input)) {
-        return validationRules.errorMessage || 'Invalid format';
-      }
-    }
-    
-    // Custom validation if provided
-    if (customValidation) {
-      const customError = customValidation(input);
-      if (customError) {
-        return customError;
-      }
-    }
-    
-    return '';
+  const validateMatrixInput = (input: any): string => {
+    return validateInput(input, validationRules, {}, customLogic);
   };
 
   // Find the specific categoryOptionCombo based on gender and age
@@ -292,22 +274,22 @@ const TextFieldMatrixBlock: FC<TextFieldMatrixBlockProps> = ({
   };
 
   // Handle saving data for a specific cell
-  const handleSaveData = async (cocId: string) => {
-    const currentValue = values[cocId] || '';
+  const handleSaveData = async (cocId: string, currentValue?: string) => {
+    // Use the passed value or get it from state
+    const valueToSave = currentValue !== undefined ? currentValue : (values[cocId] || '');
     
     // Skip save if there's validation error
     if (errors[cocId]) {
       const newStatuses = { ...statuses, [cocId]: FieldStatus.ERROR };
       setStatuses(newStatuses);
-      
       return;
     }
-    
+      
     // Skip save if value is empty and not required
     if ((currentValue === '' || currentValue === null || currentValue === undefined) && !validationRules.required) {
       const newStatuses = { ...statuses, [cocId]: FieldStatus.IDLE };
       setStatuses(newStatuses);
-  
+      
       return;
     }
     
@@ -329,7 +311,7 @@ const TextFieldMatrixBlock: FC<TextFieldMatrixBlockProps> = ({
             setStatuses(newStatuses);
           }
         } catch (serverError) {
-          console.error('Error saving to server, keeping in IndexedDB for later sync:', serverError);
+          console.error('Error saving to server, keeping locally for later sync:', serverError);
           const newStatuses = { ...statuses, [cocId]: FieldStatus.WARNING };
           const newErrors = { ...errors, [cocId]: 'Saved locally, will sync later' };
           
@@ -356,57 +338,102 @@ const TextFieldMatrixBlock: FC<TextFieldMatrixBlockProps> = ({
       setErrors(newErrors);
     }
   };
-  // Handle input change for a specific cell
+  
+  // Update handleInputChange to use the new validation function
   const handleInputChange = (cocId: string) => (event: ChangeEvent<HTMLInputElement>) => {
     const newValue = event.target.value;
-    const newValues = { ...values, [cocId]: newValue };
     
-    // Update value
-    setValues(newValues);
+    // Update the value immediately for responsive UI
+    setValues(prev => ({ ...prev, [cocId]: newValue }));
     
-    // Set status to IDLE
-    const newStatuses = { ...statuses, [cocId]: FieldStatus.IDLE };
-    setStatuses(newStatuses);
+    // Set status to IDLE immediately
+    setStatuses(prev => ({ ...prev, [cocId]: FieldStatus.IDLE }));
     
-    // Run validation
-    const validationError = validateInput(newValue);
-    let newErrors = { ...errors };
-    
-    if (validationError) {
-      newErrors = { ...newErrors, [cocId]: validationError };
-      setErrors(newErrors);
-      // Notify parent about validation state
-      if (onValidationStateChange) {
-        onValidationStateChange(false);
-      }
-    } else {
-      delete newErrors[cocId];
-      setErrors(newErrors);
-      // Notify parent about validation state
-      if (onValidationStateChange) {
-        onValidationStateChange(true);
-      }
+    // Clear any existing validation timer for this field
+    if (debouncedValidationTimers.current[cocId]) {
+      clearTimeout(debouncedValidationTimers.current[cocId]);
     }
+    
+    // Debounce the validation to prevent excessive validation during typing
+    debouncedValidationTimers.current[cocId] = setTimeout(() => {
+      // Run validation with the potentially latest value
+      const currentValue = values[cocId] || newValue;
+      const validationError = validateMatrixInput(currentValue);
+      
+      if (validationError) {
+        setErrors(prev => ({ ...prev, [cocId]: validationError }));
+        // Notify parent about validation state
+        if (onValidationStateChange) {
+          onValidationStateChange(false);
+        }
+      } else {
+        setErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors[cocId];
+          return newErrors;
+        });
+        // Notify parent about validation state
+        if (onValidationStateChange) {
+          onValidationStateChange(true);
+        }
+      }
+      
+      // Clear the reference after execution
+      delete debouncedValidationTimers.current[cocId];
+    }, 300); // 300ms debounce for validation
+    
+    // Clean up on component unmount
+    useEffect(() => {
+      return () => {
+        // Clear all debounce timers when component unmounts
+        Object.values(debouncedValidationTimers.current).forEach(
+          timer => clearTimeout(timer)
+        );
+      };
+    }, []);
   };
 
   // Handle blur event for auto-saving
   const handleBlur = (cocId: string) => () => {
     const currentValue = values[cocId] || '';
     
-    // Only autosave if there's a value and no errors
-    if (currentValue && !errors[cocId] && !autoSaving[cocId]) {
+    // Only autosave if there's a value, no errors, and no pending save for this field
+    if (currentValue && !errors[cocId] && !pendingSaves[cocId]) {
+      // Mark this field as having a pending save
+      setPendingSaves(prev => ({ ...prev, [cocId]: true }));
+      
+      // Set autosaving UI state
       const newAutoSaving = { ...autoSaving, [cocId]: true };
       setAutoSaving(newAutoSaving);
       
-      // Add delay before auto-saving
+      // Debounce the save operation
       setTimeout(() => {
-        handleSaveData(cocId).finally(() => {
-          setAutoSaving(prev => {
-            const newState = { ...prev };
-            delete newState[cocId];
-            return newState;
+        // Use the latest value when the timeout executes
+        const latestValue = values[cocId] || '';
+        
+        handleSaveData(cocId, latestValue)
+          .catch(error => {
+            console.error('Error during save:', error);
+            setStatuses(prev => ({ ...prev, [cocId]: FieldStatus.ERROR }));
+            setErrors(prev => ({ 
+              ...prev, 
+              [cocId]: error.message || 'Failed to save, please try again' 
+            }));
+          })
+          .finally(() => {
+            // Clear both pending and autosaving states
+            setPendingSaves(prev => {
+              const newState = { ...prev };
+              delete newState[cocId];
+              return newState;
+            });
+            
+            setAutoSaving(prev => {
+              const newState = { ...prev };
+              delete newState[cocId];
+              return newState;
+            });
           });
-        });
       }, autoSaveDelay);
     }
   };
@@ -458,7 +485,7 @@ const TextFieldMatrixBlock: FC<TextFieldMatrixBlockProps> = ({
     );
     
     // For percentage type, create end adornment
-    const endAdornment = valueType === ValueType.PERCENTAGE ? (
+    const endAdornment = validationRules.valueType === ValueType.PERCENTAGE ? (
       <InputAdornment position="end">%</InputAdornment>
     ) : undefined;
 
@@ -478,16 +505,16 @@ const TextFieldMatrixBlock: FC<TextFieldMatrixBlockProps> = ({
       fullWidth: true,
       variant: q.formStyles?.variant || 'outlined',
       size: q.formStyles?.fieldSize || 'small',
-      label: isMobile ? `${columnLabel}` : q.shortName,
-      placeholder: q.formStyles?.placeholder || `Enter ${q.shortName}`,
+      label: `${columnLabel}`,
+      placeholder: q.formStyles?.placeholder || `Enter here`,
       type: getInputType,
       value: currentValue,
       onChange: handleInputChange(cocId),
       onBlur: handleBlur(cocId),
       error: hasError,
-      helperText: getHelperText(cocId),
-      disabled: readOnly || isSaving,
-      required: validationRules.required,
+      //helperText: getHelperText(cocId),
+      disabled: q.disabled || isSaving,
+      required: validationRules.required || true,
       sx: { 
         bgcolor: 'white',
         ...(q.formStyles?.sx || {})
@@ -509,22 +536,10 @@ const TextFieldMatrixBlock: FC<TextFieldMatrixBlockProps> = ({
           justifyContent: 'space-between',
           mt: 0.5
         }}>
-          {getHelperText(cocId) && (
+          {(hasError || statuses?.[cocId] === FieldStatus.WARNING) && (
             <Typography variant="caption" color={hasError ? "error" : "text.secondary"}>
               {getHelperText(cocId)}
             </Typography>
-          )}
-          
-          {!isSaving && getStatusIcon(cocId) && (
-            <Box sx={{ ml: 'auto' }}>
-              {getStatusIcon(cocId)}
-            </Box>
-          )}
-          
-          {isSaving && (
-            <Box sx={{ ml: 'auto' }}>
-              <CircularProgress size={16} />
-            </Box>
           )}
         </Box>
       </Box>
@@ -577,7 +592,7 @@ const TextFieldMatrixBlock: FC<TextFieldMatrixBlockProps> = ({
                   if (!coc) return null;
                   
                   return (
-                    <Grid item xs={12} key={colIndex}>
+                    <Grid size={{ xs: 12 }} key={colIndex}>
                       <Card sx={{ p: 1 }}>
                         <CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}>
                           <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>

@@ -5,7 +5,7 @@ import SignatureRenderer from './SignatureRenderer';
 
 // Define interfaces for props and internal data structures
 interface HospitalReportPDFProps {
-  dataset: DataSet;
+  dataset: Partial<DataSet>;
   organization: {
     id: string;
     name: string;
@@ -221,7 +221,7 @@ const HospitalReportPDF: React.FC<HospitalReportPDFProps> = ({
    * Get the name of a data element by its ID
    */
   const getElementName = (elementId: string): string => {
-    const element = metadata.dataElements.find(el => el.uid === elementId);
+    const element = metadata.dataElements?.find(el => el.uid === elementId);
     return element ? element.name : elementId;
   };
   
@@ -229,7 +229,7 @@ const HospitalReportPDF: React.FC<HospitalReportPDFProps> = ({
    * Get the name of a category option combo by its ID
    */
   const getCategoryOptionComboName = (cocId: string): string => {
-    const coc = metadata.categoryOptionCombos.find(c => c.id === cocId);
+    const coc = metadata.categoryOptionCombos?.find(c => c.id === cocId);
     return coc ? coc.name : cocId;
   };
   
@@ -237,21 +237,43 @@ const HospitalReportPDF: React.FC<HospitalReportPDFProps> = ({
    * Calculate summary statistics
    */
   const calculateSummary = () => {
-    const totalValues = submittedValues.length;
-    const totalRecords = submittedRecords.length;
-    const uniqueDataElements = new Set([
-      ...submittedValues.map(v => v.dataElement),
-      ...submittedRecords.map(r => r.dataElement)
-    ]).size;
+    // Verify we have the arrays before calculating
+    const totalValues = Array.isArray(submittedValues) ? submittedValues.length : 0;
+    const totalRecords = Array.isArray(submittedRecords) ? submittedRecords.length : 0;
+    
+    // Create a Set to count unique data elements
+    const uniqueElementsSet = new Set();
+    
+    // Add data elements from values
+    if (Array.isArray(submittedValues)) {
+      submittedValues.forEach(v => {
+        if (v.dataElement) uniqueElementsSet.add(v.dataElement);
+      });
+    }
+    
+    // Add data elements from records
+    if (Array.isArray(submittedRecords)) {
+      submittedRecords.forEach(r => {
+        if (r.dataElement) uniqueElementsSet.add(r.dataElement);
+      });
+    }
+    
+    // Count completed sections
+    const completedSections = [...(mainSectionData || []), ...(dynamicSectionData || [])].filter(
+      section => {
+        return (
+          Array.isArray(section.values) && section.values.length > 0 || 
+          Array.isArray(section.records) && section.records.length > 0
+        );
+      }
+    ).length;
     
     return {
       totalEntries: totalValues + totalRecords,
       totalValues,
       totalRecords,
-      uniqueDataElements,
-      completedSections: [...mainSectionData, ...dynamicSectionData].filter(
-        section => section.values.length > 0 || section.records.length > 0
-      ).length
+      uniqueDataElements: uniqueElementsSet.size,
+      completedSections,
     };
   };
 
@@ -259,17 +281,28 @@ const HospitalReportPDF: React.FC<HospitalReportPDFProps> = ({
    * Render a section's data in the PDF
    */
   const renderSectionData = (sectionData: SectionData) => {
+    // Check if we have valid data
+    if (!sectionData || !sectionData.section) {
+      return (
+        <View style={{ marginBottom: 20 }}>
+          <Text style={styles.noData}>Invalid section data</Text>
+        </View>
+      );
+    }
+    
     const { section, values, records } = sectionData;
+    const safeValues = Array.isArray(values) ? values : [];
+    const safeRecords = Array.isArray(records) ? records : [];
     
     return (
       <View key={section.id} style={{ marginBottom: 20 }}>
-        <Text style={styles.sectionTitle}>{section.name}</Text>
+        <Text style={styles.sectionTitle}>{section.name || 'Unnamed Section'}</Text>
         
         {/* Render values */}
-        {values.length > 0 && (
+        {safeValues.length > 0 && (
           <View style={{ marginBottom: 10 }}>
             <Text style={styles.subsectionTitle}>Data Values</Text>
-            {values.map((value, index) => (
+            {safeValues.map((value, index) => (
               <View key={`value-${section.id}-${index}`} style={styles.dataRow}>
                 <Text style={styles.dataLabel}>
                   {getElementName(value.dataElement)}
@@ -282,10 +315,10 @@ const HospitalReportPDF: React.FC<HospitalReportPDFProps> = ({
         )}
         
         {/* Render records */}
-        {records.length > 0 && (
+        {safeRecords.length > 0 && (
           <View style={{ marginBottom: 10 }}>
             <Text style={styles.subsectionTitle}>Records</Text>
-            {records.map((record, index) => (
+            {safeRecords.map((record, index) => (
               <View key={`record-${section.id}-${index}`} style={styles.recordContainer}>
                 <Text style={styles.recordTitle}>{getElementName(record.dataElement) || 'Record'}</Text>
                 {Object.entries(record.data || {}).map(([key, value], idx) => (
@@ -300,7 +333,7 @@ const HospitalReportPDF: React.FC<HospitalReportPDFProps> = ({
         )}
         
         {/* No data message */}
-        {values.length === 0 && records.length === 0 && (
+        {safeValues.length === 0 && safeRecords.length === 0 && (
           <Text style={styles.noData}>
             No data entered for this section
           </Text>
@@ -322,6 +355,10 @@ const HospitalReportPDF: React.FC<HospitalReportPDFProps> = ({
 
   const currentDate = formatDate(new Date());
   const summary = calculateSummary();
+  const safeSections = {
+    main: Array.isArray(mainSectionData) ? mainSectionData : [],
+    dynamic: Array.isArray(dynamicSectionData) ? dynamicSectionData : []
+  };
 
   return (
     <Document>
@@ -401,8 +438,8 @@ const HospitalReportPDF: React.FC<HospitalReportPDFProps> = ({
           Required Information
         </Text>
         
-        {mainSectionData.length > 0 ? (
-          mainSectionData.map(renderSectionData)
+        {safeSections.main.length > 0 ? (
+          safeSections.main.map(renderSectionData)
         ) : (
           <Text style={styles.noData}>No required information data available</Text>
         )}
@@ -411,7 +448,7 @@ const HospitalReportPDF: React.FC<HospitalReportPDFProps> = ({
       </Page>
 
       {/* Specialized Services Page */}
-      {dynamicSectionData.length > 0 && (
+      {safeSections.dynamic.length > 0 && (
         <Page size="A4" style={styles.page}>
           <View style={styles.header}>
             <View style={styles.headerLeft}>
@@ -427,7 +464,7 @@ const HospitalReportPDF: React.FC<HospitalReportPDFProps> = ({
             Specialized Services
           </Text>
           
-          {dynamicSectionData.map(renderSectionData)}
+          {safeSections.dynamic.map(renderSectionData)}
           
           <Text style={styles.pageNumber}>3</Text>
         </Page>
@@ -480,7 +517,7 @@ const HospitalReportPDF: React.FC<HospitalReportPDFProps> = ({
           <Text>Confidential - For authorized use only</Text>
         </View>
         
-        <Text style={styles.pageNumber}>{dynamicSectionData.length > 0 ? '4' : '3'}</Text>
+        <Text style={styles.pageNumber}>{safeSections.dynamic.length > 0 ? '4' : '3'}</Text>
       </Page>
     </Document>
   );

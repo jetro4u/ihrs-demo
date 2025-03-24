@@ -35,8 +35,9 @@ import ErrorIcon from '@mui/icons-material/Error';
 import WarningIcon from '@mui/icons-material/Warning';
 import SaveIcon from '@mui/icons-material/Save';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { DataElement, ValueType, CategoryOptionCombo, DataValuePayload, FieldStatus } from '../types';
+import { DataElement, DataSet, ValueType, CategoryOptionCombo, DataValuePayload, FieldStatus } from '../types';
 import ObjectAutoCompleteSelect from './ObjectAutoCompleteSelect';
+import { getValidationRules, getCustomLogic, validateInput as validateInputFunction } from '../utils/validateLogic';
 
 // Helper types to manage aggregated data
 type CategoryMatrix = {
@@ -55,7 +56,7 @@ type Template = {
 interface TemplateMenuMatrixBlockProps {
   q: DataElement[];
   coc: CategoryOptionCombo[];
-  dataSet: string;
+  dataSet: DataSet;
   period: string;
   source: string;
   onSubmit?: (data: string, dataElement: string, categoryOptionCombo: string) => Promise<{ success: boolean }>;
@@ -97,7 +98,6 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
   
   // Value tracking and status states
   const [values, setValues] = useState<Record<string, Record<string, string>>>({});
-//  const [statuses, setStatuses] = useState<Record<string, FieldStatus>>({})
   const [statuses, setStatuses] = useState<Record<string, Record<string, FieldStatus>>>({});
   const [errors, setErrors] = useState<Record<string, Record<string, string>>>({});
   const [autoSaving, setAutoSaving] = useState<Record<string, Record<string, boolean>>>({});
@@ -105,9 +105,6 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
   const [submittedElements, setSubmittedElements] = useState<string[]>([]);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  
-  //const valueType = q.valueType || ValueType.TEXT;
-  //const autoSaveDelay = q.autoSaveDelay || 400;
 
   // Create main template and combine with external templates
   const mainTemplate: Template = { 
@@ -120,6 +117,17 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
     mainTemplate,
     ...externalTemplates
   ]);
+    
+    const validationRules = useMemo(() => getValidationRules({
+      elementOption: selectedOption,
+      dataSet,
+      fieldName: 'value'
+    }), [q, dataSet]);
+  
+    const customLogic = useMemo(() => getCustomLogic({
+      elementOption: selectedOption,
+      dataSet,
+    }), [q, dataSet]);
 
   const elementOptions = q.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   
@@ -131,65 +139,6 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
   const availableOptions = elementOptions.filter(
     (option) => !Object.prototype.hasOwnProperty.call(data, option.uid)
   );
-  
-  // Load from session storage
-  const loadFromSessionStorage = (dataElementId: string) => {
-    try {
-      const storageKey = `${SESSION_STORAGE_KEY_PREFIX}${dataElementId}`;
-      const storedData = sessionStorage.getItem(storageKey);
-      
-      if (storedData) {
-        const parsedData = JSON.parse(storedData);
-        
-        // Update the states for this specific dataElement
-        setValues(prev => ({
-          ...prev,
-          [dataElementId]: parsedData.values || {}
-        }));
-        
-        setStatuses(prev => ({
-          ...prev,
-          [dataElementId]: parsedData.statuses || {}
-        }));
-        
-        setErrors(prev => ({
-          ...prev,
-          [dataElementId]: parsedData.errors || {}
-        }));
-        
-        setSubmittedCombos(prev => ({
-          ...prev,
-          [dataElementId]: parsedData.submittedCombos || []
-        }));
-      }
-    } catch (error) {
-      console.error('Error loading from session storage:', error);
-    }
-  };
-
-  // Save to session storage
-  const saveToSessionStorage = (
-    dataElementId: string,
-    newValues: Record<string, string>,
-    newStatuses: Record<string, FieldStatus>,
-    newErrors: Record<string, string>,
-    newSubmittedCombos: string[]
-  ) => {
-    try {
-      const storageKey = `${SESSION_STORAGE_KEY_PREFIX}${dataElementId}`;
-      const dataToStore = {
-        values: newValues,
-        statuses: newStatuses,
-        errors: newErrors,
-        submittedCombos: newSubmittedCombos,
-        timestamp: new Date().getTime()
-      };
-      
-      sessionStorage.setItem(storageKey, JSON.stringify(dataToStore));
-    } catch (error) {
-      console.error('Error saving to session storage:', error);
-    }
-  };
 
   // Initialize values from existingValues for all selected data elements
   useEffect(() => {
@@ -210,8 +159,6 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
         if (!dataElement || !dataElement.categoryCombo) return undefined;
         
         const ccId = dataElement.categoryCombo.id;
-        // Load from session storage first
-        loadFromSessionStorage(dataElementId);
         
         // Then merge with existing values
         const newElementValues: Record<string, string> = values[dataElementId] || {};
@@ -259,15 +206,6 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
             createMatrixForElement(dataElementId);
           }
         }
-        
-        // Save the merged data to sessionStorage
-        saveToSessionStorage(
-          dataElementId, 
-          newElementValues, 
-          newElementStatuses, 
-          errors[dataElementId] || {}, 
-          newElementSubmittedCombos
-        );
         
         // Add to submittedElements if all combos are submitted
         const relevantCombos = coc.filter(c => c.categoryCombo?.id === ccId);
@@ -539,75 +477,23 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
     }
     return 'Data Collection Form';
   };
-  
-  // Validate input based on valueType
-  const validateInput = (dataElementId: string, input: any): string => {
-    // Find the specific data element first
+
+  const validateInputValue = (dataElementId: string, input: any): string => {
+    // Find the specific data element
     const dataElement = q.find(de => de.uid === dataElementId);
     if (!dataElement) return 'Invalid data element';
     
-    const valueType = dataElement.valueType;
-    const validationRules = dataElement.validationRules || {};
+    // Collect all values to support cross-field validation
+    const allValues: Record<string, any> = {};
+    Object.keys(values).forEach(elementId => {
+      Object.entries(values[elementId]).forEach(([cocId, value]) => {
+        // Add each value with a key that could be referenced in customLogic
+        allValues[`${elementId}_${cocId}`] = value;
+      });
+    });
     
-    // If empty and required
-    if ((input === '' || input === null || input === undefined) && validationRules.required) {
-      return 'This field is required';
-    }
-  
-    // Type-specific validation
-    switch (valueType) {
-      case ValueType.INTEGER:
-      case ValueType.INTEGER_POSITIVE:
-      case ValueType.INTEGER_NEGATIVE:
-      case ValueType.INTEGER_ZERO_OR_POSITIVE:
-      case ValueType.NUMBER:
-        if (input !== '' && isNaN(Number(input))) {
-          return 'Please enter a valid number';
-        }
-        
-        const num = Number(input);
-        
-        if (validationRules.min !== undefined && validationRules.min !== null && num < validationRules.min) {
-          return `Value must be at least ${validationRules.min}`;
-        }
-        
-        if (validationRules.max !== undefined && validationRules.max !== null && num > validationRules.max) {
-          return `Value must be at most ${validationRules.max}`;
-        }
-        
-        if (valueType === ValueType.INTEGER_POSITIVE && num <= 0) {
-          return 'Value must be a positive integer';
-        }
-        
-        if (valueType === ValueType.INTEGER_NEGATIVE && num >= 0) {
-          return 'Value must be a negative integer';
-        }
-        
-        if (valueType === ValueType.INTEGER_ZERO_OR_POSITIVE && num < 0) {
-          return 'Value must be zero or a positive integer';
-        }
-        break;
-      default:
-        break;
-    }
-    
-    // Regex validation if provided
-    if (validationRules.regex && input) {
-      const regex = new RegExp(validationRules.regex);
-      if (!regex.test(input)) {
-        return validationRules.errorMessage || 'Invalid format';
-      }
-    }
-    
-    // Custom validation if provided
-    if (customValidation) {
-      const customError = customValidation(input);
-      if (customError) {
-        return customError;
-      }
-    }
-    
-    return '';
+    // Use the imported validation function
+    return validateInputFunction(input, validationRules, allValues, customLogic);
   };
   
   // Get input type based on valueType
@@ -615,7 +501,14 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
     const dataElement = q.find(de => de.uid === dataElementId);
     if (!dataElement) return 'text';
     
-    const valueType = dataElement.valueType;
+    // Get validation rules to determine the value type
+    const validationRules = getValidationRules({ 
+      elementOption: dataElement,
+      dataSet: dataSet,
+      fieldName: 'value'
+    });
+    
+    const valueType = validationRules.valueType;
     
     switch (valueType) {
       case ValueType.NUMBER:
@@ -625,68 +518,64 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
       case ValueType.INTEGER_ZERO_OR_POSITIVE:
       case ValueType.PERCENTAGE:
         return 'number';
+      case ValueType.DATE:
+        return 'date';
+      case ValueType.BOOLEAN:
+        return 'checkbox';
       default:
         return 'text';
     }
   };
   
-  // Get input props based on valueType
+  // Update the getInputProps function to use validationRules
   const getInputProps = (dataElementId: string) => {
     const dataElement = q.find(de => de.uid === dataElementId);
     if (!dataElement) return {};
     
-    const valueType = dataElement.valueType;
+    // Get validation rules to determine input constraints
+    const validationRules = getValidationRules({ 
+      elementOption: dataElement,
+      dataSet: dataSet,
+      fieldName: 'value'
+    });
+    
+    const valueType = validationRules.valueType;
     const props: any = {};
+    
+    // Apply min/max from validationRules if available
+    if (validationRules.min !== null && validationRules.min !== undefined) {
+      props.min = validationRules.min;
+    }
+    
+    if (validationRules.max !== null && validationRules.max !== undefined) {
+      props.max = validationRules.max;
+    }
     
     switch (valueType) {
       case ValueType.INTEGER:
-        props.step = 1;
-        props.inputMode = 'numeric';
-        break;
       case ValueType.INTEGER_POSITIVE:
-        props.step = 1;
-        props.min = 1;
-        props.inputMode = 'numeric';
-        break;
       case ValueType.INTEGER_NEGATIVE:
-        props.step = 1;
-        props.max = -1;
-        props.inputMode = 'numeric';
-        break;
       case ValueType.INTEGER_ZERO_OR_POSITIVE:
         props.step = 1;
-        props.min = 0;
         props.inputMode = 'numeric';
         break;
       case ValueType.PERCENTAGE:
         props.step = 1;
-        props.min = 0;
-        props.max = 100;
+        props.min = props.min || 0;
+        props.max = props.max || 100;
         props.inputMode = 'numeric';
+        break;
+      case ValueType.NUMBER:
+        props.inputMode = 'decimal';
+        break;
+      case ValueType.DATE:
+        // Date-specific props if needed
         break;
       default:
         break;
     }
     
     return props;
-  };
-  
-  // Prepare payload for saving
-  const preparePayload = (dataElementId: string, cocId: string, value: string): DataValuePayload => {
-    const stringifiedValue = 
-      typeof value === 'object' ? JSON.stringify(value) : 
-      value !== null && value !== undefined ? String(value) : '';
-    
-    return {
-      source: source,
-      period: period,
-      dataElement: dataElementId,
-      categoryOptionCombo: cocId,
-      value: stringifiedValue,
-      comment: '',
-      followup: false,
-      date: new Date()
-    };
   };
   
   // Handle saving data for a specific cell
@@ -708,15 +597,6 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
         }
       };
       setStatuses(newStatuses);
-      
-      // Save to session storage even in error state
-      saveToSessionStorage(
-        dataElementId, 
-        values[dataElementId] || {}, 
-        newStatuses[dataElementId] || {}, 
-        errors[dataElementId] || {}, 
-        submittedCombos[dataElementId] || []
-      );
       return;
     }
     
@@ -729,15 +609,6 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
         }
       };
       setStatuses(newStatuses);
-      
-      // Save to session storage
-      saveToSessionStorage(
-        dataElementId, 
-        values[dataElementId] || {}, 
-        newStatuses[dataElementId] || {}, 
-        errors[dataElementId] || {}, 
-        submittedCombos[dataElementId] || []
-      );
       
       // Try to save to server
       if (onSubmit) {
@@ -771,15 +642,6 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
                 prev.includes(dataElementId) ? prev : [...prev, dataElementId]
               );
             }
-            
-            // Save to session storage
-            saveToSessionStorage(
-              dataElementId, 
-              values[dataElementId] || {}, 
-              newStatuses[dataElementId] || {}, 
-              errors[dataElementId] || {}, 
-              newSubmittedCombos[dataElementId] || []
-            );
           }
         } catch (error) {
           console.error('Error saving to server, keeping in IndexedDB for later sync:', error);
@@ -801,15 +663,6 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
           
           setStatuses(newStatuses);
           setErrors(newErrors);
-          
-          // Save error state to session storage
-          saveToSessionStorage(
-            dataElementId, 
-            values[dataElementId] || {}, 
-            newStatuses[dataElementId] || {}, 
-            newErrors[dataElementId] || {}, 
-            submittedCombos[dataElementId] || []
-          );
         }
       }
     } catch (error) {
@@ -832,15 +685,6 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
       
       setStatuses(newStatuses);
       setErrors(newErrors);
-      
-      // Save error state to session storage
-      saveToSessionStorage(
-        dataElementId, 
-        values[dataElementId] || {}, 
-        newStatuses[dataElementId] || {}, 
-        newErrors[dataElementId] || {}, 
-        submittedCombos[dataElementId] || []
-      );
     }
   };
   
@@ -866,8 +710,8 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
       }
     }));
     
-    // Run validation
-    const validationError = validateInput(dataElementId, newValue);
+    // Run validation with the new validation function
+    const validationError = validateInputValue(dataElementId, newValue);
     if (validationError) {
       setErrors(prev => ({
         ...prev,
@@ -897,21 +741,6 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
         onValidationStateChange(true);
       }
     }
-    
-    // Save to session storage
-    saveToSessionStorage(
-      dataElementId, 
-      {
-        ...(values[dataElementId] || {}),
-        [cocId]: newValue
-      },
-      {
-        ...(statuses[dataElementId] || {}),
-        [cocId]: FieldStatus.IDLE
-      },
-      errors[dataElementId] || {},
-      submittedCombos[dataElementId] || []
-    );
   };
   
   // Handle blur event for auto-saving
@@ -998,7 +827,14 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
     
     if (!dataElement) return null;
     
-    const valueType = dataElement.valueType;
+    // Get validation rules to determine input properties
+    const validationRules = getValidationRules({ 
+      elementOption: dataElement,
+      dataSet: dataSet,
+      fieldName: 'value'
+    });
+    
+    const valueType = validationRules.valueType;
   
     const startAdornment = (
       <InputAdornment position="start">
@@ -1036,7 +872,7 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
       error: hasError,
       //helperText: getHelperText(),
       disabled: readOnly || isSaving,
-      required: dataElement.validationRules?.required,
+      required: validationRules.required, // Use validation rule's required property
       sx: { 
         bgcolor: 'white',
         ...(isMobile && { width: '100%' })
@@ -1065,12 +901,6 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
               {getHelperText()}
             </Typography>
           )}
-          {/*
-          {isSaving && (
-            <Box sx={{ ml: 'auto' }}>
-              <CircularProgress size={16} />
-            </Box>
-          )}*/}
         </Box>
       </Box>
     );
@@ -1254,25 +1084,37 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
             bgcolor: hasAllSubmitted ? '#f0f7f0' : 'white'
           }}
         >
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            {/* Left side: Title and expand/collapse */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <IconButton 
-                onClick={() => toggleComponentCollapse(dataElementId)}
-                aria-label={isComponentCollapsed[dataElementId] ? "Expand" : "Collapse"}
-                size="small"
-                sx={{ mr: 1 }}
-              >
-                {isComponentCollapsed[dataElementId] ? <ExpandMoreIcon /> : <ExpandLessIcon />}
-              </IconButton>
+          {/* Mobile: Stack layout */}
+          <Box sx={{ display: { xs: 'block', sm: 'none' } }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              {/* Left side: Title and expand/collapse */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <IconButton 
+                  onClick={() => toggleComponentCollapse(dataElementId)}
+                  aria-label={isComponentCollapsed[dataElementId] ? "Expand" : "Collapse"}
+                  size="small"
+                >
+                  {isComponentCollapsed[dataElementId] ? <ExpandMoreIcon /> : <ExpandLessIcon />}
+                </IconButton>
+                
+                <Typography variant="h6" sx={{ fontWeight: 500, fontSize: { xs: '0.9rem', sm: '1.25rem' } }}>
+                  {dataElement.name}
+                </Typography>
+              </Box>
               
-              <Typography variant="h6" sx={{ fontWeight: 500 }}>
-                {dataElement.name}
-              </Typography>
+              {/* Delete button on right */}
+              <IconButton 
+                color="error" 
+                size="small"
+                onClick={() => handleRemoveElement(dataElementId)}
+                disabled={autoSaving[dataElementId] && Object.values(autoSaving[dataElementId]).some(Boolean)}
+              >
+                <DeleteIcon />
+              </IconButton>
             </Box>
             
-            {/* Right side: Status chips and delete button */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {/* Status chips in their own row on mobile */}
+            <Box sx={{ mb: 2 }}>
               {hasAllSubmitted && (
                 <Chip 
                   icon={<CheckCircleIcon />} 
@@ -1289,16 +1131,57 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
                   size="small" 
                 />
               )}
+            </Box>
+          </Box>
+          
+          {/* Desktop: Normal layout */}
+          <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              {/* Left side: Title and expand/collapse */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <IconButton 
+                  onClick={() => toggleComponentCollapse(dataElementId)}
+                  aria-label={isComponentCollapsed[dataElementId] ? "Expand" : "Collapse"}
+                  size="small"
+                  sx={{ mr: 1 }}
+                >
+                  {isComponentCollapsed[dataElementId] ? <ExpandMoreIcon /> : <ExpandLessIcon />}
+                </IconButton>
+                
+                <Typography variant="h6" sx={{ fontWeight: 500 }}>
+                  {dataElement.name}
+                </Typography>
+              </Box>
               
-              <IconButton 
-                color="error" 
-                size="small"
-                onClick={() => handleRemoveElement(dataElementId)}
-                disabled={autoSaving[dataElementId] && Object.values(autoSaving[dataElementId]).some(Boolean)}
-                sx={{ ml: { xs: 2, sm: 3 } }}
-              >
-                <DeleteIcon />
-              </IconButton>
+              {/* Right side: Status chips and delete button */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                {hasAllSubmitted && (
+                  <Chip 
+                    icon={<CheckCircleIcon />} 
+                    label="All Submitted" 
+                    color="success" 
+                    size="small" 
+                  />
+                )}
+                
+                {!hasAllSubmitted && submittedCount > 0 && (
+                  <Chip 
+                    label={`${submittedCount}/${totalCombos} Submitted`} 
+                    color="warning" 
+                    size="small" 
+                  />
+                )}
+                
+                <IconButton 
+                  color="error" 
+                  size="small"
+                  onClick={() => handleRemoveElement(dataElementId)}
+                  disabled={autoSaving[dataElementId] && Object.values(autoSaving[dataElementId]).some(Boolean)}
+                  sx={{ ml: 2 }}
+                >
+                  <DeleteIcon />
+                </IconButton>
+              </Box>
             </Box>
           </Box>
           

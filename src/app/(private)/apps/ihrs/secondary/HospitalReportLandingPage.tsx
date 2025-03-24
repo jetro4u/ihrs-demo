@@ -9,14 +9,6 @@ import {
   Card,
   CardContent,
   FormControl,
-  InputLabel,
-  Select,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Stepper,
   Step,
   StepLabel,
@@ -37,10 +29,8 @@ import {
 import Grid from '@mui/material/Grid2';
 import { styled } from '@mui/material/styles';
 import { DatePicker } from '@mui/x-date-pickers';
-import { format } from 'date-fns';
 import { ArrowBack, ArrowForward, ExpandMore, Print, Description } from '@mui/icons-material';
-import { convertDateToPeriod, GeneratedPeriod, PeriodTypeEnum } from '../utils/convertDateToPeriod';
-import DomsSvgIcon from '../components/DomsSvgIcon';
+import { convertDateToPeriod, GeneratedPeriod } from '../utils/convertDateToPeriod';
 import SignatureCanvas, { Point } from '../components/SignatureCanvas';
 import TemplateMenuObjectForm from '../components/TemplateMenuObjectForm';
 import TemplateMenuValueForm from '../components/TemplateMenuValueForm';
@@ -52,7 +42,7 @@ import { PDFViewer } from '@react-pdf/renderer';
 import HospitalReportPDF from '../components/HospitalReportPDF';
 import metadata from '../metadata.json';
 import { initDB, storeDataRecord, storeDataValue, getDataValues, getDataRecords, storeFailedDataRecord, storeFailedDataValue, retryAllFailedData } from '../../../../../services/indexedDB';
-import { CategoryCombo,CompleteDatasetPayload, CategoryOptionCombo, DataRecordPayload, DataValuePayload, StoredDataRecord, StoredDataValue, DataElement } from '../types';
+import { AggregationType, PeriodType, DataSet, CompleteDatasetPayload, CategoryOptionCombo, DataRecordPayload, DataValuePayload, StoredDataRecord, StoredDataValue, DataElement } from '../types';
 import { submitToServer } from '../utils/apiService';
 import { determineStorageType } from '../utils/determineStorageType';
 
@@ -74,25 +64,7 @@ const FormPaper = styled(Paper)(({ theme }) => ({
     overflowX: 'auto',
     width: '100%'
   }
-}));
-
-const HeaderAppBar = styled(AppBar)(({ theme }) => ({
-  position: 'relative',
-  boxShadow: theme.shadows[1],
-  backgroundColor: theme.palette.background.paper,
-  color: theme.palette.text.primary,
-  padding: theme.spacing(1, 2),
-  marginBottom: theme.spacing(3)
-}));
-
-const StyledTableCell = styled(TableCell)(({ theme }) => ({
-  fontWeight: 'bold',
-  backgroundColor: theme.palette.grey[100],
-}));
-
-interface HospitalReportFormProps {
-  metadata: any;
-}      
+}));     
 
 const HospitalReportLandingPage = () => {
   const steps = ['Dataset Information', 'Submit Report', 'Review & Submit'];
@@ -114,6 +86,7 @@ const HospitalReportLandingPage = () => {
   const [organization, setOrganization] = useState('');
   const [bedCapacity, setBedCapacity] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDataSet, setSelectedDataSet] = useState<Partial<DataSet>>({});
   const [collapsed, setCollapsed] = useState(false);
   const [showStepper, setShowStepper] = useState(true);
   const [isPdfOpen, setIsPdfOpen] = useState(false);
@@ -123,9 +96,9 @@ const HospitalReportLandingPage = () => {
   const contentRef = useRef(null);
   const [expandedSections, setExpandedSections] = useState({});
   const [enabledDynamicSections, setEnabledDynamicSections] = useState({});
-    const SESSION_TIMEOUT_MINUTES = 30; // Adjust as needed
-    const SESSION_TIMER_CHECK_SECONDS = 60;
-    const reporterName = React.useMemo(() => {
+  const SESSION_TIMEOUT_MINUTES = 30; // Adjust as needed
+  const SESSION_TIMER_CHECK_SECONDS = 60;
+  const reporterName = React.useMemo(() => {
       // In a real app, you would fetch this from an API based on user-id in localStorage
       // For demo purposes, we'll return a static name
       const userId = localStorage.getItem('user-id') || 'demo-user';
@@ -175,7 +148,7 @@ const HospitalReportLandingPage = () => {
   const orgs = metadata?.organisations || [];
   const organizations = orgs.filter(org => org.level === 5);
   const coc = metadata?.categoryOptionCombos || [];
-  const datasets = metadata?.dataSets || [];
+  const datasets = metadata?.dataSets as DataSet[] || [];
 
   const groupDataElementsBySection = () => {
     if (!submittedValues.length && !submittedRecords.length) {
@@ -183,42 +156,54 @@ const HospitalReportLandingPage = () => {
       return { mainSectionData: [], dynamicSectionData: [] };
     }
     
-    console.log('Grouping data elements by section');
-    console.log('Available values:', submittedValues);
-    console.log('Available records:', submittedRecords);
-    
-    const sectionElementMapping: Record<string, string[]> = {};
-    
-    // Create a mapping of section IDs to data element IDs
-    const selectedDataset = datasets.find(ds => ds.uid === completeDatasetInfo.dataSet);
-    if (selectedDataset && selectedDataset.sections) {
-      selectedDataset.sections.forEach(section => {
-        // Handle two possible structures of dataElements in sections
-        if (Array.isArray(section.dataElements)) {
-          sectionElementMapping[section.id] = section.dataElements.map(de => 
-            typeof de === 'string' ? de : de.uid || de.id
-          );
-        } else {
-          // If dataElements is undefined, create an empty array for now
-          sectionElementMapping[section.id] = [];
-        }
-      });
+    // Get the selected dataset from state
+    const dataSetId = completeDatasetInfo?.dataSet;
+    if (!dataSetId) {
+      console.error('No dataset ID available in completeDatasetInfo');
+      return { mainSectionData: [], dynamicSectionData: [] };
     }
+    
+    // Create the section element mapping
+    const sectionElementMapping = createSectionElementMapping(dataSetId);
     
     console.log('Section to element mapping:', sectionElementMapping);
     
+    // Create maps for faster lookup
+    const valueMap = new Map();
+    submittedValues.forEach(value => {
+      if (!valueMap.has(value.dataElement)) {
+        valueMap.set(value.dataElement, []);
+      }
+      valueMap.get(value.dataElement).push(value);
+    });
+    
+    const recordMap = new Map();
+    submittedRecords.forEach(record => {
+      if (!recordMap.has(record.dataElement)) {
+        recordMap.set(record.dataElement, []);
+      }
+      recordMap.get(record.dataElement).push(record);
+    });
+    
+    // Debug the maps
+    console.log('Value map has entries for elements:', Array.from(valueMap.keys()));
+    console.log('Record map has entries for elements:', Array.from(recordMap.keys()));
+    
     const mainSectionData = mainSections.map(section => {
-      // Get data elements for this section
       const sectionElementIds = sectionElementMapping[section.id] || [];
       
-      // Filter values and records by data element ID
-      const sectionValues = submittedValues.filter(value => 
-        sectionElementIds.includes(value.dataElement)
-      );
+      const sectionValues = [];
+      const sectionRecords = [];
       
-      const sectionRecords = submittedRecords.filter(record => 
-        sectionElementIds.includes(record.dataElement)
-      );
+      // Collect values and records for this section
+      sectionElementIds.forEach(elementId => {
+        if (valueMap.has(elementId)) {
+          sectionValues.push(...valueMap.get(elementId));
+        }
+        if (recordMap.has(elementId)) {
+          sectionRecords.push(...recordMap.get(elementId));
+        }
+      });
       
       console.log(`Section ${section.name} has ${sectionValues.length} values and ${sectionRecords.length} records`);
       
@@ -237,13 +222,18 @@ const HospitalReportLandingPage = () => {
       .map(section => {
         const sectionElementIds = sectionElementMapping[section.id] || [];
         
-        const sectionValues = submittedValues.filter(value => 
-          sectionElementIds.includes(value.dataElement)
-        );
+        const sectionValues = [];
+        const sectionRecords = [];
         
-        const sectionRecords = submittedRecords.filter(record => 
-          sectionElementIds.includes(record.dataElement)
-        );
+        // Collect values and records for this section
+        sectionElementIds.forEach(elementId => {
+          if (valueMap.has(elementId)) {
+            sectionValues.push(...valueMap.get(elementId));
+          }
+          if (recordMap.has(elementId)) {
+            sectionRecords.push(...recordMap.get(elementId));
+          }
+        });
         
         console.log(`Dynamic section ${section.name} has ${sectionValues.length} values and ${sectionRecords.length} records`);
         
@@ -257,6 +247,67 @@ const HospitalReportLandingPage = () => {
         };
       });
       
+    return { mainSectionData, dynamicSectionData };
+  };
+
+  // Add this function as a fallback
+  const groupDataByElementDirectly = () => {
+    const mainSectionData = mainSections.map(section => {
+      // Get all elements that belong to this section
+      const sectionElements = metadata.dataElements?.filter(el => 
+        el.section && el.section.name === section.name
+      ) || [];
+      
+      const sectionElementIds = sectionElements.map(el => el.uid);
+      
+      // Get values and records for these elements
+      const sectionValues = submittedValues.filter(val => 
+        sectionElementIds.includes(val.dataElement)
+      );
+      
+      const sectionRecords = submittedRecords.filter(rec => 
+        sectionElementIds.includes(rec.dataElement)
+      );
+      
+      console.log(`Direct mapping: Section ${section.name} has ${sectionValues.length} values and ${sectionRecords.length} records`);
+      
+      return {
+        section,
+        elements: sectionElements,
+        values: sectionValues,
+        records: sectionRecords
+      };
+    });
+    
+    const dynamicSectionData = dynamicSections
+      .filter(section => enabledDynamicSections[section.id])
+      .map(section => {
+        // Get all elements that belong to this section
+        const sectionElements = metadata.dataElements?.filter(el => 
+          el.section && el.section.name === section.name
+        ) || [];
+        
+        const sectionElementIds = sectionElements.map(el => el.uid);
+        
+        // Get values and records for these elements
+        const sectionValues = submittedValues.filter(val => 
+          sectionElementIds.includes(val.dataElement)
+        );
+        
+        const sectionRecords = submittedRecords.filter(rec => 
+          sectionElementIds.includes(rec.dataElement)
+        );
+        
+        console.log(`Direct mapping: Dynamic section ${section.name} has ${sectionValues.length} values and ${sectionRecords.length} records`);
+        
+        return {
+          section,
+          elements: sectionElements,
+          values: sectionValues,
+          records: sectionRecords
+        };
+      });
+    
     return { mainSectionData, dynamicSectionData };
   };
 
@@ -292,14 +343,29 @@ const HospitalReportLandingPage = () => {
     }
   };
 
+  const getCategoryOptionCombos = (ccId: string) => {
+    // First, find the specific data element by ID
+   // const dataElement = metadata.dataElements.find(de => de.uid === dataElementId);
+    
+    // Check if data element exists and has a categoryCombo
+    if (!coc || coc.length === 0) {
+      return [];
+    }
+    
+    // Filter categoryOptionCombos that belong to this dataElement's categoryCombo
+    const sortedCocs = coc.filter(
+      (coc: CategoryOptionCombo) => coc.categoryCombo.id === ccId
+    );
+
+    return sortedCocs.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  };
+
   // Add this useEffect to set up periodic retries of failed submissions
   useEffect(() => {
     if (!dbInitialized) return;
     
-    // Perform an initial retry when the component mounts
     retryFailedSubmissions();
     
-    // Set up a periodic retry every 5 minutes
     const retryInterval = setInterval(retryFailedSubmissions, 5 * 60 * 1000);
     
     // Clear the interval when the component unmounts
@@ -353,23 +419,6 @@ const HospitalReportLandingPage = () => {
       return () => contentElement.removeEventListener('scroll', handleScroll);
     }
   }, [lastScrollTop]);
-
-  const getCategoryOptionCombos = (ccId: string) => {
-    // First, find the specific data element by ID
-   // const dataElement = metadata.dataElements.find(de => de.uid === dataElementId);
-    
-    // Check if data element exists and has a categoryCombo
-    if (!coc || coc.length === 0) {
-      return [];
-    }
-    
-    // Filter categoryOptionCombos that belong to this dataElement's categoryCombo
-    const sortedCocs = coc.filter(
-      (coc: CategoryOptionCombo) => coc.categoryCombo.id === ccId
-    );
-
-    return sortedCocs.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-  };
   
   // Effect to fetch templates from API
   useEffect(() => {
@@ -402,12 +451,12 @@ const HospitalReportLandingPage = () => {
             // Filter and sort main sections
             const mainSecs = hospitalReport.sections
               .filter(section => section.type === "main")
-              .sort((a, b) => a.order - b.order);
+              .sort((a, b) => a.sortOrder - b.sortOrder);
             
             // Filter and sort dynamic sections
             const dynamicSecs = hospitalReport.sections
               .filter(section => section.type === "dynamic")
-              .sort((a, b) => a.order - b.order);
+              .sort((a, b) => a.sortOrder - b.sortOrder);
             
             setMainSections(mainSecs);
             setDynamicSections(dynamicSecs);
@@ -560,6 +609,36 @@ const HospitalReportLandingPage = () => {
     };
   }, []);
 
+  
+  // Add this useEffect to ensure data is loaded when needed
+  useEffect(() => {
+    // Initialize IndexedDB when component mounts
+    if (!dbInitialized && completeDatasetInfo?.dataSet) {
+      const initializeDB = async () => {
+        try {
+          await initDB();
+          setDbInitialized(true);
+          console.log('IndexedDB initialized successfully');
+          
+          // Load data after DB is initialized
+          await loadDataFromIndexedDB();
+        } catch (error) {
+          console.error('Failed to initialize IndexedDB:', error);
+          setAlertInfo({
+            open: true,
+            message: 'Failed to initialize database: ' + error.message,
+            severity: 'error'
+          });
+        }
+      };
+      
+      initializeDB();
+    } else if (dbInitialized && completeDatasetInfo?.dataSet && activeStep === 2) {
+      // Load data when moving to review step
+      loadDataFromIndexedDB();
+    }
+  }, [dbInitialized, completeDatasetInfo, activeStep]);
+
   // Enhanced function to filter data elements by section
   const getDataElementsBySection = (selectedDataSet: string, sectionName: string): DataElement[] => {
   
@@ -645,15 +724,10 @@ const HospitalReportLandingPage = () => {
     // Get the data element details to access its componentName
     const dataElementDetails = metadata.dataElements?.find(el => el.uid === dataElement);
     const componentName = dataElementDetails?.componentName || '';
-    const selectedDataset = datasets.find(ds => ds.uid === completeDatasetInfo.dataSet);
-    console.log('dataElementDetails', dataElementDetails)
-    console.log('componentName', componentName)
-    console.log('selectedDataset', selectedDataset)
     
     // Determine storage type
     const storageType = determineStorageType({
-      dataSet: selectedDataset,
-      //datasetId: completeDatasetInfo.dataSet,
+      dataSet: selectedDataSet,
       sectionId,
       dataElement,
       formBlockType,
@@ -797,7 +871,6 @@ const HospitalReportLandingPage = () => {
     }
   };  
 
-  // Update the handleSaveValue function
   const handleSaveValue = async (value: DataValuePayload): Promise<{ success: boolean }> => {
     if (!dbInitialized) {
       setAlertInfo({
@@ -872,26 +945,60 @@ const HospitalReportLandingPage = () => {
     setSubmittedRecords(records);
   };
 
-  // Handle values update from child components
   const handleValuesUpdate = (updatedValues) => {
     setSubmittedValues(updatedValues);
   };
 
-  // Update the loadDataFromIndexedDB function
   const loadDataFromIndexedDB = async () => {
     try {
       setLoading(true);
-      const { source, period } = completeDatasetInfo;
-      
-      if (!source || !period) {
+      const { source, period, dataSet } = completeDatasetInfo;
+    
+      if (!source || !period || !dataSet) {
+        console.warn('Missing source, period, or dataSet in completeDatasetInfo');
+        setLoading(false);
         return;
       }
+    
+      console.log('Loading data from IndexedDB for:', { source, period, dataSet });
       
+      // Load values and records from IndexedDB
       const values = await getDataValues(period, source);
       const records = await getDataRecords(period, source);
+    
+      console.log('Loaded data:', { values: values.length, records: records.length });
+      
+      // Set the selected dataset for reference - THIS WAS COMMENTED OUT IN YOUR CODE
+      const selectedds = datasets.find(ds => ds.uid === dataSet);
+      const selectedDataset: DataSet = {
+        ...selectedds,
+        periodType: selectedds.periodType as PeriodType,
+        aggregationType: selectedds.aggregationType as AggregationType
+      };
+      if (selectedDataset) {
+        setSelectedDataSet(selectedDataset);
+        console.log('Selected dataset:', selectedDataset);
+      } else {
+        console.error(`Dataset with ID ${dataSet} not found in metadata`);
+      }
       
       setSubmittedValues(values);
       setSubmittedRecords(records);
+      
+      // Set formatted period for display
+      if (period) {
+        try {
+          // This assumes period is in format YYYYMM
+          const year = period.substring(0, 4);
+          const month = period.substring(4, 6);
+          const date = new Date(parseInt(year), parseInt(month) - 1);
+          const formatter = new Intl.DateTimeFormat('en', { year: 'numeric', month: 'long' });
+          setPeriodFormatted(formatter.format(date));
+        } catch (error) {
+          console.error('Error formatting period:', error);
+          setPeriodFormatted(period);
+        }
+      }
     } catch (error) {
       console.error('Failed to load data from IndexedDB:', error);
       setAlertInfo({
@@ -904,16 +1011,76 @@ const HospitalReportLandingPage = () => {
     }
   };
   
-    const handleDateChange = (date: Date | null) => {
-      console.log("date", date);
-      setSelectedDate(date);
+  const createSectionElementMapping = (dataSetId) => {
+    const sectionElementMapping = {};
+    
+    const selectedDataset = datasets.find(ds => ds.uid === dataSetId);
+    
+    if (selectedDataset && selectedDataset.sections) {
+      // Log for debugging
+      console.log('Creating mapping for dataset:', selectedDataset.name);
       
-      if (!date) {
-        // Clear the period if date is null
-        localStorage.removeItem('ihrs-selected-period');
-        setPeriodFormatted('');
+      selectedDataset.sections.forEach(section => {
+        // Initialize array for this section
+        sectionElementMapping[section.id] = [];
+        
+        if (section.dataElements && section.dataElements.length > 0) {
+          // Handle both array of strings and array of objects
+          const elementIds = section.dataElements.map(de => 
+            typeof de === 'string' ? de : (de.uid)
+          );
+          
+          sectionElementMapping[section.id] = elementIds;
+          console.log(`Section ${section.name} mapped to ${elementIds.length} elements:`, elementIds);
+        } else {
+          console.warn(`Section ${section.name} has no data elements`);
+        }
+      });
+    } else {
+      console.error(`Dataset with ID ${dataSetId} not found or has no sections`);
+    }
+    
+    return sectionElementMapping;
+  };
+
+  // Add this utility function to help with element matching
+  const findSectionForElement = (elementId) => {
+    // First check main sections
+    for (const section of mainSections) {
+      const sectionElementIds = section.dataElements || [];
+      const elementIds = sectionElementIds.map(de => 
+        typeof de === 'string' ? de : (de.uid || de.id)
+      );
+      
+      if (elementIds.includes(elementId)) {
+        return section;
       }
-    };
+    }
+    
+    // Then check dynamic sections
+    for (const section of dynamicSections) {
+      const sectionElementIds = section.dataElements || [];
+      const elementIds = sectionElementIds.map(de => 
+        typeof de === 'string' ? de : (de.uid || de.id)
+      );
+      
+      if (elementIds.includes(elementId)) {
+        return section;
+      }
+    }
+    
+    return null;
+  };
+  
+  const handleDateChange = (date: Date | null) => {
+    setSelectedDate(date);
+    
+    if (!date) {
+      // Clear the period if date is null
+      localStorage.removeItem('ihrs-selected-period');
+      setPeriodFormatted('');
+    }
+  };
   
     const handleOrganizationChange = (selectedOrg: { id: string; name: string; /* other properties */ } | null) => {
       if (!selectedOrg) return;
@@ -948,10 +1115,16 @@ const HospitalReportLandingPage = () => {
     };
   
     
-  const handleDatasetChange = (selectedDataset: { uid: string; name: string; } | null) => {
+  const handleDatasetChange = (selectedDataset: DataSet | null) => {
     if (!selectedDataset) return;
     
     const dataSet = selectedDataset.uid;
+    //const selectedDatasetWithEnum = datasets.find(ds => ds.uid === dataSet);
+    const selectedds: DataSet = {
+      ...selectedDataset,
+      aggregationType: selectedDataset.aggregationType as AggregationType
+    };
+    setSelectedDataSet(selectedds)
     
     if (dataSet !== completeDatasetInfo.dataSet) {
       // Clear the submitted values
@@ -970,7 +1143,7 @@ const HospitalReportLandingPage = () => {
       ...prev,
       dataSet
     }));
-    localStorage.setItem('ihrs-selected-dataset', dataSet);
+    localStorage.setItem('ihrs-selected-dataset', JSON.stringify(selectedds));
     
     // When dataset changes, we might need to update the period format
     if (selectedDate) {
@@ -1068,8 +1241,9 @@ const HospitalReportLandingPage = () => {
       setSubmittedRecords([]);
       
       // Get the selected dataset from localStorage
-      const selectedDatasetUid = localStorage.getItem('ihrs-selected-dataset');
-      const selectedDataset = datasets.find(ds => ds.uid === selectedDatasetUid);
+      const dataset = localStorage.getItem('ihrs-selected-dataset');
+      const retrievedDataset = JSON.parse(dataset);
+      const selectedDataset = datasets.find(ds => ds.uid === retrievedDataset.uid);
             
       let formattedPeriod: GeneratedPeriod = {
         type: '',
@@ -1078,7 +1252,7 @@ const HospitalReportLandingPage = () => {
       };
       
       if (selectedDataset) {
-        formattedPeriod = convertDateToPeriod(selectedDate, selectedDataset.periodType as PeriodTypeEnum);
+        formattedPeriod = convertDateToPeriod(selectedDate, selectedDataset.periodType);
         
         // Store in localStorage and state
         localStorage.setItem('ihrs-selected-period', formattedPeriod.period);
@@ -1118,19 +1292,24 @@ const HospitalReportLandingPage = () => {
   // Dynamic component renderer based on section component type
   const renderSectionComponent = (section) => {
     const selectedSource = localStorage.getItem('ihrs-selected-org') || '';
-    const selectedDataSet = localStorage.getItem('ihrs-selected-dataset') || '';
+    const dataset = localStorage.getItem('ihrs-selected-dataset');
+    const selectedDataSet = JSON.parse(dataset) as DataSet;
     const selectedPeriod = localStorage.getItem('ihrs-selected-period') || '';
-    const filteredDataElements = getDataElementsBySection(selectedDataSet, section.name);
+    const filteredDataElements = getDataElementsBySection(selectedDataSet.uid, section.name);
+    const filteredDataSet = {
+      ...selectedDataSet,
+      sections: selectedDataSet.sections?.filter(sec => sec.name === section.name) || []
+    };
     
     switch(section.formBlock) {
       case 'TemplateMenuObjectForm':
         return (
           <TemplateMenuObjectForm 
             q={filteredDataElements}
-            dataSet={selectedDataSet}
+            dataSet={filteredDataSet}
             period={selectedPeriod}
             source={selectedSource}
-            onSubmit={(data, dataElement, categoryOptionCombo) => handleFormBlockSubmit(data, 'TemplateMenuObjectForm', dataElement, section.id)}
+            onSubmit={(data, dataElement) => handleFormBlockSubmit(data, 'TemplateMenuObjectForm', dataElement, section.id)}
             templates={templates}
             existingRecords={submittedRecords}
             onRecordsUpdate={handleRecordsUpdate}
@@ -1141,7 +1320,7 @@ const HospitalReportLandingPage = () => {
         return (
           <TemplateMenuValueForm 
             q={filteredDataElements}
-            dataSet={selectedDataSet}
+            dataSet={filteredDataSet}
             period={selectedPeriod}
             source={selectedSource}
             onSubmit={(data, dataElement, categoryOptionCombo) => 
@@ -1159,7 +1338,7 @@ const HospitalReportLandingPage = () => {
               <Box key={element.uid} sx={{ mb: 2 }}>
                 <DomsTextBlock
                   q={element}
-                  dataSet={selectedDataSet}
+                  dataSet={filteredDataSet}
                   period={selectedPeriod}
                   source={selectedSource}
                   onSubmit={(data, categoryOptionCombo) => 
@@ -1180,7 +1359,7 @@ const HospitalReportLandingPage = () => {
                 <TextFieldMatrixBlock
                   q={element}
                   coc={getCategoryOptionCombos(element.categoryCombo.id)}
-                  dataSet={selectedDataSet}
+                  dataSet={filteredDataSet}
                   period={selectedPeriod}
                   source={selectedSource}
                   onSubmit={(data, dataElement, categoryOptionCombo) => 
@@ -1198,7 +1377,7 @@ const HospitalReportLandingPage = () => {
             <TemplateMenuMatrixBlock
               q={filteredDataElements}
               coc={coc}
-              dataSet={selectedDataSet}
+              dataSet={filteredDataSet}
               period={selectedPeriod}
               source={selectedSource}
               onSubmit={(data, dataElement, categoryOptionCombo) => 
@@ -1218,7 +1397,6 @@ const HospitalReportLandingPage = () => {
     }
   };
 
-  // Render dataset info form
   const renderDatasetInfoForm = () => {
     return (
       <FormPaper elevation={2}>
@@ -1248,7 +1426,9 @@ const HospitalReportLandingPage = () => {
                 freeSolo={false}
                 options={datasets}
                 value={datasets.find(dataset => dataset.uid === completeDatasetInfo.dataSet) || null}
-                onChange={(selectedDataset) => handleDatasetChange(selectedDataset)}
+                onChange={(e: any) => {
+                  handleDatasetChange(e as DataSet);
+                }}
                 labelField="name"
                 valueField="uid"
                 label="Dataset"
@@ -1264,7 +1444,6 @@ const HospitalReportLandingPage = () => {
               views={['day']}
               value={selectedDate}
               onChange={(newDate) => handleDateChange(newDate)}
-             // onChange={handleDateChange}
               slotProps={{
                 textField: {
                   fullWidth: true,
@@ -1288,7 +1467,6 @@ const HospitalReportLandingPage = () => {
     );
   };
 
-  // Render general patient statistics form with better organization
   const renderDatasetSections = () => {
     return (
       <Box sx={{
@@ -1603,11 +1781,11 @@ const HospitalReportLandingPage = () => {
             padding: { xs: 1, sm: 2 },
             zIndex: 1050,
             boxShadow: '0px -2px 4px rgba(0,0,0,0.1)',
-            width: '100%', // Use 100% of parent width instead of fixed maxWidth
+            width: '100%',
             boxSizing: 'border-box',
-            left: 'auto', // Remove left positioning
-            right: 'auto', // Remove right positioning
-            margin: '0', // Remove auto margins
+            left: 'auto',
+            right: 'auto',
+            margin: '0',
             borderRadius: 1
           }}>
             <Button
@@ -1635,12 +1813,35 @@ const HospitalReportLandingPage = () => {
     );
   };
 
-  // Render review and submit form
   const renderReviewForm = () => {
-    const selectedDataset = datasets.find(ds => ds.uid === completeDatasetInfo.dataSet);
     const selectedOrg = organizations.find(org => org.id === completeDatasetInfo.source);
+  
+    console.log('Rendering review form with:', {
+      dataset: selectedDataSet,
+      submittedValues: submittedValues.length,
+      submittedRecords: submittedRecords.length
+    });
     
-  const { mainSectionData, dynamicSectionData } = groupDataElementsBySection();
+  let { mainSectionData, dynamicSectionData } = groupDataElementsBySection();
+  
+  console.log('Grouped data:', {
+    mainSections: mainSectionData.length,
+    dynamicSections: dynamicSectionData.length
+  });
+
+  const hasAnyData = mainSectionData.some(section => 
+    section.values.length > 0 || section.records.length > 0
+  ) || dynamicSectionData.some(section => 
+    section.values.length > 0 || section.records.length > 0
+  );
+  
+  // If no data was found using the mapping, try direct lookup
+  if (!hasAnyData && (submittedValues.length > 0 || submittedRecords.length > 0)) {
+    console.log('No data found using mapping, trying direct lookup');
+    const directData = groupDataByElementDirectly();
+    mainSectionData = directData.mainSectionData;
+    dynamicSectionData = directData.dynamicSectionData;
+  }
     
     const getElementName = (elementId) => {
       const element = metadata.dataElements?.find(el => el.uid === elementId);
@@ -1731,7 +1932,7 @@ const HospitalReportLandingPage = () => {
             </Box>
             <PDFViewer width="100%" height="100%">
               <HospitalReportPDF 
-                dataset={selectedDataset}
+                dataset={selectedDataSet}
                 organization={selectedOrg}
                 period={periodFormatted}
                 mainSectionData={mainSectionData}
@@ -1758,7 +1959,7 @@ const HospitalReportLandingPage = () => {
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="subtitle2" color="text.secondary">Dataset</Typography>
-                  <Typography variant="body1">{selectedDataset?.name || 'Not selected'}</Typography>
+                  <Typography variant="body1">{selectedDataSet?.name || 'Not selected'}</Typography>
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="subtitle2" color="text.secondary">Reporting Period</Typography>
@@ -1777,38 +1978,51 @@ const HospitalReportLandingPage = () => {
                 <Typography variant="h5">
                   Hospital Data
                 </Typography>
+                {loading && <CircularProgress size={24} />}
               </Box>
               
               <Divider sx={{ mb: 3 }} />
-              
-              {/* Main Sections */}
-              <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
-                Required Information
-              </Typography>
-              
-              {mainSectionData.map(renderSectionData)}
-              
-              {/* Dynamic Sections */}
-              {dynamicSectionData.length > 0 && (
-                <>
-                  <Divider sx={{ my: 3 }} />
-                  <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
-                    Specialized Services
-                  </Typography>
-                  {dynamicSectionData.map(renderSectionData)}
-                </>
-              )}
-              
-              {/* No data message */}
-              {submittedValues.length === 0 && submittedRecords.length === 0 && (
-                <Box sx={{ textAlign: 'center', py: 4 }}>
-                  <Icon color="action" fontSize="large">info</Icon>
-                  <Typography color="text.secondary" sx={{ mt: 1 }}>
-                    No data has been entered for this report yet
-                  </Typography>
-                </Box>
-              )}
-            </Paper>
+            
+            {/* Show message when loading */}
+            {loading ? (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <CircularProgress size={40} />
+                <Typography color="text.secondary" sx={{ mt: 2 }}>
+                  Loading report data...
+                </Typography>
+              </Box>
+            ) : (
+              <>
+                {/* Main Sections */}
+                <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+                  Required Information
+                </Typography>
+                
+                {mainSectionData.map(renderSectionData)}
+                
+                {/* Dynamic Sections */}
+                {dynamicSectionData.length > 0 && (
+                  <>
+                    <Divider sx={{ my: 3 }} />
+                    <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+                      Specialized Services
+                    </Typography>
+                    {dynamicSectionData.map(renderSectionData)}
+                  </>
+                )}
+                
+                {/* No data message */}
+                {!loading && submittedValues.length === 0 && submittedRecords.length === 0 && (
+                  <Box sx={{ textAlign: 'center', py: 4 }}>
+                    <Icon color="action" fontSize="large">info</Icon>
+                    <Typography color="text.secondary" sx={{ mt: 1 }}>
+                      No data has been entered for this report yet
+                    </Typography>
+                  </Box>
+                )}
+              </>
+            )}
+          </Paper>
             
             {/* Signature Pad Card */}
             <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
@@ -1900,7 +2114,6 @@ const HospitalReportLandingPage = () => {
     );
   };
 
-  // Render the active step
   const renderStep = () => {
     switch (activeStep) {
       case 0:
@@ -1914,7 +2127,6 @@ const HospitalReportLandingPage = () => {
     }
   };
 
-  // Main render
   return (
     <Box sx={{ 
       width: '100%',
