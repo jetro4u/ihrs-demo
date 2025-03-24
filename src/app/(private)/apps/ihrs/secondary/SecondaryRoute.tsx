@@ -6,7 +6,6 @@ import ihrsAuth from '@/app/(private)/apps/ihrs/layout/ihrsAuth';
 
 const MenuObjectReportLandingPage = lazy(() => import('../components/MenuObjectReportLandingPage'));
 const MenuValueReportLandingPage = lazy(() => import('../components/MenuValueReportLandingPage'));
-const HospitalReportForm = lazy(() => import('./HospitalReportForm'));
 const HospitalReportLandingPage = lazy(() => import('./HospitalReportLandingPage'));
 
 /**
