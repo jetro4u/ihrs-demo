@@ -18,6 +18,7 @@ const STORES = {
 // Modify the initDB function to ensure it's only initialized once
 let dbInstance = null;
 
+// Modify the initDB function to properly create all required stores
 export const initDB = (): Promise<IDBDatabase> => {
   // If we already have a connection, use it
   if (dbInstance) {
@@ -35,42 +36,81 @@ export const initDB = (): Promise<IDBDatabase> => {
     request.onsuccess = (event: Event) => {
       dbInstance = (event.target as IDBOpenDBRequest).result;
       console.log('IndexedDB initialized successfully');
-      resolve(dbInstance);
+      
+      // Verify all stores exist
+      const storeNames = Object.values(STORES);
+      const missingStores = storeNames.filter(store => !dbInstance.objectStoreNames.contains(store));
+      
+      if (missingStores.length > 0) {
+        console.warn('Some stores are missing:', missingStores);
+        // If stores are missing, close the current connection and upgrade the version
+        dbInstance.close();
+        const newVersion = DB_VERSION + 1;
+        console.log(`Upgrading database to version ${newVersion} to create missing stores`);
+        const upgradeRequest = indexedDB.open(DB_NAME, newVersion);
+        
+        upgradeRequest.onupgradeneeded = (event: IDBVersionChangeEvent) => {
+          const db: IDBDatabase = (event.target as IDBOpenDBRequest).result;
+          createStoresIfNeeded(db);
+        };
+        
+        upgradeRequest.onsuccess = (event: Event) => {
+          dbInstance = (event.target as IDBOpenDBRequest).result;
+          console.log('Database upgrade successful, all stores created');
+          resolve(dbInstance);
+        };
+        
+        upgradeRequest.onerror = (event: Event) => {
+          console.error('Database upgrade failed:', (event.target as IDBOpenDBRequest).error);
+          reject('Database upgrade failed: ' + (event.target as IDBOpenDBRequest).error);
+        };
+      } else {
+        resolve(dbInstance);
+      }
     };
     
     request.onupgradeneeded = (event: IDBVersionChangeEvent) => {
       const db: IDBDatabase = (event.target as IDBOpenDBRequest).result;
-      
-      // Check if stores exist before creating them
-      if (!db.objectStoreNames.contains(STORES.DATA_VALUES)) {
-        console.log('Creating DATA_VALUES store');
-        const valueStore = db.createObjectStore(STORES.DATA_VALUES, { keyPath: 'uniqueKey' });
-        valueStore.createIndex('by_source_period', ['source', 'period'], { unique: false });
-        valueStore.createIndex('by_element_source', ['dataElement', 'source'], { unique: false });
-      }
-      
-      if (!db.objectStoreNames.contains(STORES.DATA_RECORDS)) {
-        console.log('Creating DATA_RECORDS store');
-        const recordStore = db.createObjectStore(STORES.DATA_RECORDS, { keyPath: 'uniqueKey' });
-        recordStore.createIndex('by_source_period', ['source', 'period'], { unique: false });
-        recordStore.createIndex('by_element_source', ['dataElement', 'source'], { unique: false });
-      }
-      
-      if (!db.objectStoreNames.contains(STORES.FAILED_DATA_VALUES)) {
-        console.log('Creating FAILED_DATA_VALUES store');
-        const failedValueStore = db.createObjectStore(STORES.FAILED_DATA_VALUES, { keyPath: 'uniqueKey' });
-        failedValueStore.createIndex('by_source_period', ['source', 'period'], { unique: false });
-        failedValueStore.createIndex('by_element_source', ['dataElement', 'source'], { unique: false });
-      }
-      
-      if (!db.objectStoreNames.contains(STORES.FAILED_DATA_RECORDS)) {
-        console.log('Creating FAILED_DATA_RECORDS store');
-        const failedRecordStore = db.createObjectStore(STORES.FAILED_DATA_RECORDS, { keyPath: 'uniqueKey' });
-        failedRecordStore.createIndex('by_source_period', ['source', 'period'], { unique: false });
-        failedRecordStore.createIndex('by_element_source', ['dataElement', 'source'], { unique: false });
-      }
+      createStoresIfNeeded(db);
     };
   });
+};
+
+// Helper function to create stores
+const createStoresIfNeeded = (db: IDBDatabase) => {
+  // Create DATA_VALUES store if needed
+  if (!db.objectStoreNames.contains(STORES.DATA_VALUES)) {
+    console.log('Creating DATA_VALUES store');
+    const valueStore = db.createObjectStore(STORES.DATA_VALUES, { keyPath: 'uniqueKey' });
+    valueStore.createIndex('by_source_period', ['source', 'period'], { unique: false });
+    valueStore.createIndex('by_element_source', ['dataElement', 'source'], { unique: false });
+  }
+  
+  // Create DATA_RECORDS store if needed
+  if (!db.objectStoreNames.contains(STORES.DATA_RECORDS)) {
+    console.log('Creating DATA_RECORDS store');
+    const recordStore = db.createObjectStore(STORES.DATA_RECORDS, { keyPath: 'uniqueKey' });
+    recordStore.createIndex('by_source_period', ['source', 'period'], { unique: false });
+    recordStore.createIndex('by_element_source', ['dataElement', 'source'], { unique: false });
+  }
+  
+  // Create FAILED_DATA_VALUES store if needed
+  if (!db.objectStoreNames.contains(STORES.FAILED_DATA_VALUES)) {
+    console.log('Creating FAILED_DATA_VALUES store');
+    const failedValueStore = db.createObjectStore(STORES.FAILED_DATA_VALUES, { keyPath: 'uniqueKey' });
+    failedValueStore.createIndex('by_source_period', ['source', 'period'], { unique: false });
+    failedValueStore.createIndex('by_element_source', ['dataElement', 'source'], { unique: false });
+    failedValueStore.createIndex('by_retry_status', 'retryStatus', { unique: false });
+  }
+  
+  // Create FAILED_DATA_RECORDS store if needed
+  if (!db.objectStoreNames.contains(STORES.FAILED_DATA_RECORDS)) {
+    console.log('Creating FAILED_DATA_RECORDS store');
+    const failedRecordStore = db.createObjectStore(STORES.FAILED_DATA_RECORDS, { keyPath: 'uniqueKey' });
+    failedRecordStore.createIndex('by_source_period', ['source', 'period'], { unique: false });
+    failedRecordStore.createIndex('by_element_source', ['dataElement', 'source'], { unique: false });
+    failedRecordStore.createIndex('by_retry_status', 'retryStatus', { unique: false });
+  }
 };
 
 // Get or initialize the database
@@ -615,4 +655,72 @@ export const retryAllFailedData = async (): Promise<{ records: number, values: n
   }
   
   return { records: successfulRecords, values: successfulValues };
+};
+
+export const storeFailedSubmission = async (data: DataValuePayload | DataRecordPayload, type: 'value' | 'record'): Promise<void> => {
+  try {
+    const db = await getDB();
+    const storeName = type === 'value' ? STORES.FAILED_DATA_VALUES : STORES.FAILED_DATA_RECORDS;
+    
+    return new Promise<void>((resolve, reject) => {
+      if (!db.objectStoreNames.contains(storeName)) {
+        console.error(`Store ${storeName} does not exist`);
+        reject(`Store ${storeName} does not exist`);
+        return;
+      }
+      
+      const transaction = db.transaction([storeName], 'readwrite');
+      const store = transaction.objectStore(storeName);
+      
+      // Generate a unique key
+      const uniqueKey = type === 'value' 
+        ? generateValueKey(data as DataValuePayload) 
+        : generateRecordKey(data as DataRecordPayload);
+      
+      // Prepare the item with the unique key and retry information
+      const itemToStore = {
+        ...data,
+        uniqueKey,
+        failureTimestamp: new Date().toISOString(),
+        retryCount: 0,
+        retryStatus: 'pending', // 'pending', 'retrying', 'failed'
+        lastError: 'Initial server submission failed'
+      };
+      
+      const request = store.put(itemToStore);
+      
+      request.onsuccess = () => {
+        console.log(`Successfully stored failed ${type} with key:`, uniqueKey);
+        resolve();
+      };
+      
+      request.onerror = (event: Event) => {
+        console.error(`Error storing failed ${type}:`, (event.target as IDBRequest).error);
+        reject(`Error storing failed ${type}: ${(event.target as IDBRequest).error}`);
+      };
+    });
+  } catch (error) {
+    console.error(`Failed to store failed ${type}:`, error);
+    throw error;
+  }
+};
+
+// Update the submitToServerWithRetry function
+export const submitToServerWithRetry = async (data: DataValuePayload | DataRecordPayload, type: 'value' | 'record'): Promise<void> => {
+  try {
+    await submitToServer(data, type);
+    console.log(`Successfully submitted ${type} to server`);
+  } catch (error) {
+    console.error(`Failed to submit ${type} to server:`, error);
+    
+    // Store the failed submission in IndexedDB
+    try {
+      await storeFailedSubmission(data, type);
+      console.log(`Stored failed ${type} for later retry`);
+    } catch (storeError) {
+      console.error(`Failed to store failed ${type}:`, storeError);
+    }
+    
+    throw error; // Rethrow to let the caller know the submission failed
+  }
 };

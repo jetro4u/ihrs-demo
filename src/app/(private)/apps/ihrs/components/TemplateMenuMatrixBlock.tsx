@@ -1,4 +1,4 @@
-import { FC, useState, useEffect, ChangeEvent, useMemo, Fragment } from 'react';
+import { FC, useState, useEffect, ChangeEvent, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
   TextField,
@@ -35,6 +35,7 @@ import ErrorIcon from '@mui/icons-material/Error';
 import WarningIcon from '@mui/icons-material/Warning';
 import SaveIcon from '@mui/icons-material/Save';
 import DeleteIcon from '@mui/icons-material/Delete';
+import { useMatrixDebounce } from 'src/@fuse/hooks'
 import { DataElement, DataSet, ValueType, CategoryOptionCombo, DataValuePayload, FieldStatus } from '../types';
 import ObjectAutoCompleteSelect from './ObjectAutoCompleteSelect';
 import { getValidationRules, getCustomLogic, validateInput as validateInputFunction } from '../utils/validateLogic';
@@ -105,6 +106,8 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
   const [submittedElements, setSubmittedElements] = useState<string[]>([]);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const pendingSavesRef = useRef<Record<string, Record<string, boolean>>>({});
+  const abortControllersRef = useRef<Record<string, Record<string, AbortController>>>({});
 
   // Create main template and combine with external templates
   const mainTemplate: Template = { 
@@ -134,6 +137,22 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
   useEffect(() => {
     setTemplates([mainTemplate, ...externalTemplates]);
   }, [externalTemplates]);
+
+  // Add this useEffect for cleanup
+  useEffect(() => {
+    return () => {
+      // Abort any pending save requests
+      Object.keys(abortControllersRef.current).forEach(dataElementId => {
+        Object.values(abortControllersRef.current[dataElementId] || {}).forEach(controller => {
+          try {
+            controller.abort();
+          } catch (error) {
+            console.error('Error aborting request:', error);
+          }
+        });
+      });
+    };
+  }, []);
 
   // Filter out options already in data
   const availableOptions = elementOptions.filter(
@@ -579,36 +598,55 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
   };
   
   // Handle saving data for a specific cell
+  // Updated handleSaveData function with race condition prevention
   const handleSaveData = async (dataElementId: string, cocId: string) => {
     const currentValue = values[dataElementId]?.[cocId] || '';
     const currentErrors = errors[dataElementId]?.[cocId] || '';
     const dataElement = q.find(de => de.uid === dataElementId);
-    if (!dataElement || !dataElement.categoryCombo) return undefined;
+    if (!dataElement || !dataElement.categoryCombo) return;
     
     const ccId = dataElement.categoryCombo.id;
     
     // Skip save if there's validation error
     if (currentErrors) {
-      const newStatuses = {
-        ...statuses,
+      setStatuses(prev => ({
+        ...prev,
         [dataElementId]: {
-          ...statuses[dataElementId],
+          ...prev[dataElementId],
           [cocId]: FieldStatus.ERROR
         }
-      };
-      setStatuses(newStatuses);
+      }));
       return;
     }
     
+    // Skip if already saving this field
+    if (pendingSavesRef.current[dataElementId]?.[cocId]) {
+      return;
+    }
+    
+    // Initialize nested objects if they don't exist
+    if (!pendingSavesRef.current[dataElementId]) {
+      pendingSavesRef.current[dataElementId] = {};
+    }
+    if (!abortControllersRef.current[dataElementId]) {
+      abortControllersRef.current[dataElementId] = {};
+    }
+    
+    // Mark as saving
+    pendingSavesRef.current[dataElementId][cocId] = true;
+    
+    // Create an abort controller for this save operation
+    const controller = new AbortController();
+    abortControllersRef.current[dataElementId][cocId] = controller;
+    
     try {
-      const newStatuses = {
-        ...statuses,
+      setStatuses(prev => ({
+        ...prev,
         [dataElementId]: {
-          ...statuses[dataElementId],
+          ...prev[dataElementId],
           [cocId]: FieldStatus.SAVING
         }
-      };
-      setStatuses(newStatuses);
+      }));
       
       // Try to save to server
       if (onSubmit) {
@@ -624,94 +662,92 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
               ]
             };
             
-            const newStatuses = {
-              ...statuses,
+            setSubmittedCombos(newSubmittedCombos);
+            setStatuses(prev => ({
+              ...prev,
               [dataElementId]: {
-                ...statuses[dataElementId],
+                ...prev[dataElementId],
                 [cocId]: FieldStatus.SAVED
               }
-            };
+            }));
             
-            setSubmittedCombos(newSubmittedCombos);
-            setStatuses(newStatuses);
-            
-            // Filter category option combos by this category combo ID first
+            // Check if all combos for this element are saved
             const relevantCombos = coc.filter(c => c.categoryCombo?.id === ccId);
             if (newSubmittedCombos[dataElementId].length === relevantCombos.length) {
               setSubmittedElements(prev => 
                 prev.includes(dataElementId) ? prev : [...prev, dataElementId]
               );
             }
+          } else {
+            throw new Error("Server returned unsuccessful response");
           }
         } catch (error) {
-          console.error('Error saving to server, keeping in IndexedDB for later sync:', error);
-          const newStatuses = {
-            ...statuses,
+          console.error('Error saving to server:', error);
+          setStatuses(prev => ({
+            ...prev,
             [dataElementId]: {
-              ...statuses[dataElementId],
-              [cocId]: FieldStatus.WARNING
+              ...prev[dataElementId],
+              [cocId]: FieldStatus.ERROR
             }
-          };
+          }));
           
-          const newErrors = {
-            ...errors,
+          setErrors(prev => ({
+            ...prev,
             [dataElementId]: {
-              ...errors[dataElementId],
-              [cocId]: 'Saved locally, will sync later'
+              ...prev[dataElementId],
+              [cocId]: error instanceof Error ? error.message : 'Unknown error'
             }
-          };
-          
-          setStatuses(newStatuses);
-          setErrors(newErrors);
+          }));
         }
       }
     } catch (error) {
-      console.error('Error saving data:', error);
-      const newStatuses = {
-        ...statuses,
+      console.error('Error in save process:', error);
+      setStatuses(prev => ({
+        ...prev,
         [dataElementId]: {
-          ...statuses[dataElementId],
+          ...prev[dataElementId],
           [cocId]: FieldStatus.ERROR
         }
-      };
+      }));
       
-      const newErrors = {
-        ...errors,
+      setErrors(prev => ({
+        ...prev,
         [dataElementId]: {
-          ...errors[dataElementId],
+          ...prev[dataElementId],
           [cocId]: error instanceof Error ? error.message : 'Unknown error'
         }
-      };
+      }));
+    } finally {
+      // Clean up regardless of outcome
+      if (pendingSavesRef.current[dataElementId]) {
+        delete pendingSavesRef.current[dataElementId][cocId];
+      }
       
-      setStatuses(newStatuses);
-      setErrors(newErrors);
+      if (abortControllersRef.current[dataElementId]) {
+        delete abortControllersRef.current[dataElementId][cocId];
+      }
+      
+      // Clear auto-saving state
+      setAutoSaving(prev => {
+        const newState = { ...prev };
+        if (newState[dataElementId]) {
+          const elementAutoSaving = { ...newState[dataElementId] };
+          delete elementAutoSaving[cocId];
+          newState[dataElementId] = elementAutoSaving;
+        }
+        return newState;
+      });
     }
   };
-  
-  // Handle input change for a specific cell
-  const handleInputChange = (dataElementId: string, cocId: string) => (event: ChangeEvent<HTMLInputElement>) => {
-    const newValue = event.target.value;
-    
-    // Update value
-    setValues(prev => ({
-      ...prev,
-      [dataElementId]: {
-        ...prev[dataElementId],
-        [cocId]: newValue
-      }
-    }));
-    
-    // Set status to IDLE
-    setStatuses(prev => ({
-      ...prev,
-      [dataElementId]: {
-        ...prev[dataElementId],
-        [cocId]: FieldStatus.IDLE
-      }
-    }));
-    
+
+  // Add these debounced functions
+  const debouncedSave = useMatrixDebounce((dataElementId: string, cocId: string, value: string) => {
+    handleSaveData(dataElementId, cocId);
+  }, 400);
+
+  const debouncedValidate = useMatrixDebounce((dataElementId: string, cocId: string, value: string) => {
     // Run validation with the new validation function
-    const validationError = validateInputValue(dataElementId, newValue);
+    const validationError = validateInputValue(dataElementId, value);
     if (validationError) {
       setErrors(prev => ({
         ...prev,
@@ -741,37 +777,42 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
         onValidationStateChange(true);
       }
     }
+  }, 300);
+
+  // Updated handleInputChange function to use debounced validation
+  const handleInputChange = (dataElementId: string, cocId: string) => (event: ChangeEvent<HTMLInputElement>) => {
+    const newValue = event.target.value;
+    
+    // Update value immediately for responsive UI
+    setValues(prev => ({
+      ...prev,
+      [dataElementId]: {
+        ...prev[dataElementId],
+        [cocId]: newValue
+      }
+    }));
+    
+    // Set status to IDLE immediately
+    setStatuses(prev => ({
+      ...prev,
+      [dataElementId]: {
+        ...prev[dataElementId],
+        [cocId]: FieldStatus.IDLE
+      }
+    }));
+    
+    // Use debounced validation
+    debouncedValidate(dataElementId, cocId, newValue);
   };
-  
-  // Handle blur event for auto-saving
+
+  // Updated handleBlur function to use debounced save
   const handleBlur = (dataElementId: string, cocId: string) => () => {
     const currentValue = values[dataElementId]?.[cocId] || '';
     const currentErrors = errors[dataElementId]?.[cocId];
     
-    // Only autosave if there's a value and no errors
-    if (currentValue && !currentErrors && !autoSaving[dataElementId]?.[cocId]) {
-      setAutoSaving(prev => ({
-        ...prev,
-        [dataElementId]: {
-          ...prev[dataElementId],
-          [cocId]: true
-        }
-      }));
-      
-      // Auto-save with a delay
-      setTimeout(() => {
-        handleSaveData(dataElementId, cocId).finally(() => {
-          setAutoSaving(prev => {
-            const newState = { ...prev };
-            if (newState[dataElementId]) {
-              const elementAutoSaving = { ...newState[dataElementId] };
-              delete elementAutoSaving[cocId];
-              newState[dataElementId] = elementAutoSaving;
-            }
-            return newState;
-          });
-        });
-      }, 1000); // 1 second delay
+    // Only trigger save if we have a value and there are no errors
+    if (currentValue && !currentErrors && !pendingSavesRef.current[dataElementId]?.[cocId]) {
+      debouncedSave(dataElementId, cocId, currentValue);
     }
   };
   
@@ -848,14 +889,14 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
     ) : undefined;
   
     // Get helper text for a specific cell
-    const getHelperText = (): string => {
-      if (errors[dataElementId]?.[cocId]) return errors[dataElementId]?.[cocId];
-      if (autoSaving[dataElementId]?.[cocId]) return "Auto-saving...";
-      if (statuses[dataElementId]?.[cocId] === FieldStatus.SAVING) return "Saving...";
-      if (statuses[dataElementId]?.[cocId] === FieldStatus.SAVED) return "Saved";
-      if (statuses[dataElementId]?.[cocId] === FieldStatus.WARNING) return "Saved locally, will sync later";
-      return "";
-    };
+  const getHelperText = (): string => {
+    if (errors[dataElementId]?.[cocId]) return errors[dataElementId]?.[cocId];
+    if (autoSaving[dataElementId]?.[cocId]) return "Auto-saving...";
+    if (statuses[dataElementId]?.[cocId] === FieldStatus.SAVING) return "Saving...";
+    if (statuses[dataElementId]?.[cocId] === FieldStatus.SAVED) return "Saved";
+    if (statuses[dataElementId]?.[cocId] === FieldStatus.WARNING) return "Saved locally, will sync later";
+    return "";
+  };
   
     const textFieldProps: TextFieldProps = {
       id: `input-${dataElementId}-${cocId}`,
@@ -870,9 +911,8 @@ const TemplateMenuMatrixBlock: FC<TemplateMenuMatrixBlockProps> = ({
       onChange: handleInputChange(dataElementId, cocId),
       onBlur: handleBlur(dataElementId, cocId),
       error: hasError,
-      //helperText: getHelperText(),
-      disabled: readOnly || isSaving,
-      required: validationRules.required, // Use validation rule's required property
+      disabled: readOnly || (isSaving && !hasError),
+      required: validationRules.required,
       sx: { 
         bgcolor: 'white',
         ...(isMobile && { width: '100%' })

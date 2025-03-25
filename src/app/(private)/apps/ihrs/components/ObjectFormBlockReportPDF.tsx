@@ -4,8 +4,8 @@ import { DataValuePayload, DataRecordPayload, DataSet, Section, Point } from '..
 import SignatureRenderer from './SignatureRenderer';
 
 // Define interfaces for props and internal data structures
-interface HospitalReportPDFProps {
-  dataset: DataSet;
+interface ObjectFormBlockReportPDFProps {
+  dataset: Partial<DataSet>;
   organization: {
     id: string;
     name: string;
@@ -15,8 +15,6 @@ interface HospitalReportPDFProps {
   reporterName: string; // Added new prop
   signature: Point[][]; // Added new prop
   mainSectionData: SectionData[];
-  dynamicSectionData: SectionData[];
-  submittedValues: DataValuePayload[];
   submittedRecords: DataRecordPayload[];
   metadata: {
     dataElements: Array<{
@@ -36,7 +34,6 @@ interface SectionData {
     uid: string;
     name: string;
   }>;
-  values: DataValuePayload[];
   records: DataRecordPayload[];
 }
 
@@ -182,13 +179,12 @@ const styles = StyleSheet.create({
   },
   signatureBox: {
     height: 100,
-    border: '1pt solid #ddd',
     marginBottom: 10
   },
   signatureLine: {
     width: 250,
     borderBottom: '1pt solid #000',
-    marginTop: 60,
+    marginTop: 10,
     marginBottom: 5
   },
   signatureLabel: {
@@ -206,15 +202,13 @@ const styles = StyleSheet.create({
 /**
  * Component for rendering a hospital report as a PDF
  */
-const HospitalReportPDF: React.FC<HospitalReportPDFProps> = ({ 
+const ObjectFormBlockReportPDF: React.FC<ObjectFormBlockReportPDFProps> = ({ 
   dataset, 
   organization, 
   period, 
   reporterName,
   signature,
   mainSectionData,
-  dynamicSectionData,
-  submittedValues,
   submittedRecords,
   metadata
 }) => {
@@ -222,7 +216,7 @@ const HospitalReportPDF: React.FC<HospitalReportPDFProps> = ({
    * Get the name of a data element by its ID
    */
   const getElementName = (elementId: string): string => {
-    const element = metadata.dataElements.find(el => el.uid === elementId);
+    const element = metadata.dataElements?.find(el => el.uid === elementId);
     return element ? element.name : elementId;
   };
   
@@ -230,7 +224,7 @@ const HospitalReportPDF: React.FC<HospitalReportPDFProps> = ({
    * Get the name of a category option combo by its ID
    */
   const getCategoryOptionComboName = (cocId: string): string => {
-    const coc = metadata.categoryOptionCombos.find(c => c.id === cocId);
+    const coc = metadata.categoryOptionCombos?.find(c => c.id === cocId);
     return coc ? coc.name : cocId;
   };
   
@@ -238,21 +232,32 @@ const HospitalReportPDF: React.FC<HospitalReportPDFProps> = ({
    * Calculate summary statistics
    */
   const calculateSummary = () => {
-    const totalValues = submittedValues.length;
-    const totalRecords = submittedRecords.length;
-    const uniqueDataElements = new Set([
-      ...submittedValues.map(v => v.dataElement),
-      ...submittedRecords.map(r => r.dataElement)
-    ]).size;
+    // Verify we have the arrays before calculating
+    const totalRecords = Array.isArray(submittedRecords) ? submittedRecords.length : 0;
+    
+    // Create a Set to count unique data elements
+    const uniqueElementsSet = new Set();
+    
+    // Add data elements from records
+    if (Array.isArray(submittedRecords)) {
+      submittedRecords.forEach(r => {
+        if (r.dataElement) uniqueElementsSet.add(r.dataElement);
+      });
+    }
+    
+    // Count completed sections
+    const completedSections = [...(mainSectionData || [])].filter(
+      section => {
+        return (
+          Array.isArray(section.records) && section.records.length > 0
+        );
+      }
+    ).length;
     
     return {
-      totalEntries: totalValues + totalRecords,
-      totalValues,
-      totalRecords,
-      uniqueDataElements,
-      completedSections: [...mainSectionData, ...dynamicSectionData].filter(
-        section => section.values.length > 0 || section.records.length > 0
-      ).length
+      totalEntries: totalRecords,
+      uniqueDataElements: uniqueElementsSet.size,
+      completedSections,
     };
   };
 
@@ -260,33 +265,27 @@ const HospitalReportPDF: React.FC<HospitalReportPDFProps> = ({
    * Render a section's data in the PDF
    */
   const renderSectionData = (sectionData: SectionData) => {
-    const { section, values, records } = sectionData;
+    // Check if we have valid data
+    if (!sectionData || !sectionData.section) {
+      return (
+        <View style={{ marginBottom: 20 }}>
+          <Text style={styles.noData}>Invalid section data</Text>
+        </View>
+      );
+    }
+    
+    const { section, records } = sectionData;
+    const safeRecords = Array.isArray(records) ? records : [];
     
     return (
       <View key={section.id} style={{ marginBottom: 20 }}>
-        <Text style={styles.sectionTitle}>{section.name}</Text>
-        
-        {/* Render values */}
-        {values.length > 0 && (
-          <View style={{ marginBottom: 10 }}>
-            <Text style={styles.subsectionTitle}>Data Values</Text>
-            {values.map((value, index) => (
-              <View key={`value-${section.id}-${index}`} style={styles.dataRow}>
-                <Text style={styles.dataLabel}>
-                  {getElementName(value.dataElement)}
-                  {value.categoryOptionCombo && ` - ${getCategoryOptionComboName(value.categoryOptionCombo)}`}
-                </Text>
-                <Text style={styles.dataValue}>{value.value}</Text>
-              </View>
-            ))}
-          </View>
-        )}
+        <Text style={styles.sectionTitle}>{section.name || 'Unnamed Section'}</Text>
         
         {/* Render records */}
-        {records.length > 0 && (
+        {safeRecords.length > 0 && (
           <View style={{ marginBottom: 10 }}>
             <Text style={styles.subsectionTitle}>Records</Text>
-            {records.map((record, index) => (
+            {safeRecords.map((record, index) => (
               <View key={`record-${section.id}-${index}`} style={styles.recordContainer}>
                 <Text style={styles.recordTitle}>{getElementName(record.dataElement) || 'Record'}</Text>
                 {Object.entries(record.data || {}).map(([key, value], idx) => (
@@ -301,7 +300,7 @@ const HospitalReportPDF: React.FC<HospitalReportPDFProps> = ({
         )}
         
         {/* No data message */}
-        {values.length === 0 && records.length === 0 && (
+        {safeRecords.length === 0 && (
           <Text style={styles.noData}>
             No data entered for this section
           </Text>
@@ -323,6 +322,9 @@ const HospitalReportPDF: React.FC<HospitalReportPDFProps> = ({
 
   const currentDate = formatDate(new Date());
   const summary = calculateSummary();
+  const safeSections = {
+    main: Array.isArray(mainSectionData) ? mainSectionData : []
+  };
 
   return (
     <Document>
@@ -333,12 +335,11 @@ const HospitalReportPDF: React.FC<HospitalReportPDFProps> = ({
             src="/assets/images/logo/logo.svg" 
             style={{ width: 120, marginBottom: 40 }} 
           />
-          <Text style={{ fontSize: 32, fontWeight: 'bold', marginBottom: 20 }}>Hospital Report</Text>
-          <Text style={{ fontSize: 18, marginBottom: 10 }}>{dataset?.name || 'Unknown Dataset'}</Text>
-          <Text style={{ fontSize: 16, marginBottom: 30 }}>{organization?.name || 'Unknown Organization'}</Text>
-          <Text style={{ fontSize: 14 }}>Reporting Period: {period}</Text>
-          <Text style={{ fontSize: 14, marginBottom: 40 }}>Generated on: {currentDate}</Text>
-          <Text style={{ marginBottom: 10 }}>Reporter: {reporterName}</Text>
+          <Text style={{ fontSize: 32, fontWeight: 'bold', marginBottom: 20 }}>Monthly Hospital Report</Text>
+          <Text style={{ fontSize: 18, marginBottom: 30 }}>{organization?.name || 'Unknown Organization'}</Text>
+          <Text style={{ fontSize: 16 }}>Reporting Period: {period}</Text>
+          <Text style={{ fontSize: 16, marginBottom: 40 }}>Generated on: {currentDate}</Text>
+          <Text style={{ fontSize: 16,  marginBottom: 10 }}>Reporter: {reporterName}</Text>
         </View>
         <Text style={styles.pageNumber}>1</Text>
       </Page>
@@ -382,14 +383,6 @@ const HospitalReportPDF: React.FC<HospitalReportPDFProps> = ({
             <Text>{summary.totalEntries}</Text>
           </View>
           <View style={styles.summaryRow}>
-            <Text>Data Values:</Text>
-            <Text>{summary.totalValues}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text>Data Records:</Text>
-            <Text>{summary.totalRecords}</Text>
-          </View>
-          <View style={styles.summaryRow}>
             <Text>Unique Data Elements:</Text>
             <Text>{summary.uniqueDataElements}</Text>
           </View>
@@ -403,37 +396,14 @@ const HospitalReportPDF: React.FC<HospitalReportPDFProps> = ({
           Required Information
         </Text>
         
-        {mainSectionData.length > 0 ? (
-          mainSectionData.map(renderSectionData)
+        {safeSections.main.length > 0 ? (
+          safeSections.main.map(renderSectionData)
         ) : (
           <Text style={styles.noData}>No required information data available</Text>
         )}
 
         <Text style={styles.pageNumber}>2</Text>
       </Page>
-
-      {/* Specialized Services Page */}
-      {dynamicSectionData.length > 0 && (
-        <Page size="A4" style={styles.page}>
-          <View style={styles.header}>
-            <View style={styles.headerLeft}>
-              <Text style={styles.title}>Hospital Report</Text>
-              <Text style={styles.subtitle}>{dataset?.name || 'Unknown Dataset'}</Text>
-            </View>
-            <View style={styles.headerRight}>
-              <Text>Date: {currentDate}</Text>
-            </View>
-          </View>
-
-          <Text style={{ fontSize: 16, fontWeight: 'bold', marginTop: 10, marginBottom: 10 }}>
-            Specialized Services
-          </Text>
-          
-          {dynamicSectionData.map(renderSectionData)}
-          
-          <Text style={styles.pageNumber}>3</Text>
-        </Page>
-      )}
 
       {/* Signature Page */}
       <Page size="A4" style={styles.page}>
@@ -457,22 +427,14 @@ const HospitalReportPDF: React.FC<HospitalReportPDFProps> = ({
           </Text>
           
           <View style={styles.signatureSection}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <View style={{ width: '45%' }}>
-                <View style={styles.signatureLine} />
-                <Text style={styles.signatureLabel}>Signature of Hospital Director</Text>
-                <Text style={styles.dateLabel}>Date: _________________</Text>
+            <View style={{ alignItems: 'center', width: '100%' }}>
+              <View style={styles.signatureBox}>
+                {signature && signature.length > 0 && (
+                  <SignatureRenderer paths={signature} />
+                )}
               </View>
-              
-              <View style={{ width: '45%' }}>
-                <View style={styles.signatureBox}>
-                  {signature && signature.length > 0 && (
-                    <SignatureRenderer paths={signature} />
-                  )}
-                </View>
-                <View style={styles.signatureLine} />
-                <Text style={styles.signatureLabel}>Signature of Data Officer</Text>
-              </View>
+              <View style={styles.signatureLine} />
+              <Text style={styles.signatureLabel}>{reporterName}</Text>
             </View>
           </View>
           
@@ -486,14 +448,14 @@ const HospitalReportPDF: React.FC<HospitalReportPDFProps> = ({
         </View>
 
         <View style={styles.footer}>
-          <Text>This report was generated using the Hospital Reporting System © {new Date().getFullYear()}</Text>
+          <Text>This report was generated using the DataOrb Reporting System © {new Date().getFullYear()}</Text>
           <Text>Confidential - For authorized use only</Text>
         </View>
         
-        <Text style={styles.pageNumber}>{dynamicSectionData.length > 0 ? '4' : '3'}</Text>
+        <Text style={styles.pageNumber}>{safeSections.main.length > 0 ? '4' : '3'}</Text>
       </Page>
     </Document>
   );
 };
 
-export default HospitalReportPDF;
+export default ObjectFormBlockReportPDF;

@@ -112,3 +112,17 @@ jsonCopy{
   },
   "customLogic": "{\"validations\":[]}"
 }
+BOOLEAN
+jsonCopy{
+  "customValidation": {
+    "value": {
+      "required": true,
+      "default": false,
+      "min": null,
+      "max": null,
+      "valueType": "BOOLEAN",
+      "errorMessage": ""
+    }
+  },
+  "customLogic": "{\"validations\":[]}"
+}

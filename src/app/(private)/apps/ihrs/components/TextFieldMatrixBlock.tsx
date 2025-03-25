@@ -1,5 +1,6 @@
-import { FC, useState, useEffect, ChangeEvent, useMemo, Fragment, useRef } from 'react';
+import { FC, useState, useEffect, ChangeEvent, useMemo, Fragment, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
+import _ from 'lodash';
 import { 
   TextField,
   InputAdornment,
@@ -22,8 +23,7 @@ import {
   AccordionSummary,
   AccordionDetails,
   Card,
-  CardContent,
-  Divider
+  CardContent
 } from '@mui/material';
 import Grid from '@mui/material/Grid2';
 import DomsSvgIcon from './DomsSvgIcon';
@@ -32,6 +32,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ErrorIcon from '@mui/icons-material/Error';
 import WarningIcon from '@mui/icons-material/Warning';
+import { useMatrixDebounce } from 'src/@fuse/hooks'
 import { DataElement, DataSet, ValueType, CategoryOptionCombo, FieldStatus } from '../types';
 import { getValidationRules, getCustomLogic, validateInput } from '../utils/validateLogic';
 
@@ -78,7 +79,10 @@ const TextFieldMatrixBlock: FC<TextFieldMatrixBlockProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [autoSaving, setAutoSaving] = useState<Record<string, boolean>>({});
   const [submittedCombos, setSubmittedCombos] = useState<string[]>([]);
-  const [pendingSaves, setPendingSaves] = useState<Record<string, boolean>>({});
+  
+  // Use a ref to track save operations to prevent race conditions
+  const pendingSavesRef = useRef<Record<string, boolean>>({});
+  const abortControllersRef = useRef<Record<string, AbortController>>({});
   
   const dataElementId = q.uid;
   const autoSaveDelay = q.autoSaveDelay || 400;
@@ -97,8 +101,10 @@ const TextFieldMatrixBlock: FC<TextFieldMatrixBlockProps> = ({
     elementOption: q,
     dataSet,
   }), [q, dataSet]);
+  
   const valueType = validationRules.valueType || ValueType.TEXT;
 
+  // Load existing values
   useEffect(() => {
     if (existingValues && existingValues.length > 0) {
       const newValues: Record<string, string> = { ...values };
@@ -150,46 +156,22 @@ const TextFieldMatrixBlock: FC<TextFieldMatrixBlockProps> = ({
     setExpandedRows(initialExpandedState);
   }, [coc, isMobile]);
 
-  // Add this useEffect to handle debounced input
-useEffect(() => {
-  const debounceTimers: Record<string, NodeJS.Timeout> = {};
-  
-  // Function to handle debounced input change
-  const handleDebouncedChange = (cocId: string, newValue: string) => {
-    if (debounceTimers[cocId]) {
-      clearTimeout(debounceTimers[cocId]);
-    }
-    
-    debounceTimers[cocId] = setTimeout(() => {
-      setValues(prev => ({ ...prev, [cocId]: newValue }));
+  // Clean up any pending operations when component unmounts
+  useEffect(() => {
+    return () => {
+      // Clear all validation timers
+      Object.values(debouncedValidationTimers.current).forEach(timer => clearTimeout(timer));
       
-      // Validate after setting
-      const validationError = validateMatrixInput(newValue);
-      if (validationError) {
-        setErrors(prev => ({ ...prev, [cocId]: validationError }));
-        if (onValidationStateChange) {
-          onValidationStateChange(false);
+      // Abort any pending save requests
+      Object.values(abortControllersRef.current).forEach(controller => {
+        try {
+          controller.abort();
+        } catch (error) {
+          console.error('Error aborting request:', error);
         }
-      } else {
-        setErrors(prev => {
-          const newErrors = { ...prev };
-          delete newErrors[cocId];
-          return newErrors;
-        });
-        if (onValidationStateChange) {
-          onValidationStateChange(true);
-        }
-      }
-    }, 200); // 200ms debounce time for typing
-  };
-  
-  handleInputChange;
-  
-  // Cleanup timers on unmount
-  return () => {
-    Object.values(debounceTimers).forEach(timer => clearTimeout(timer));
-  };
-}, []);
+      });
+    };
+  }, []);
 
   // Update getInputType to use the new validation rules
   const getInputType = useMemo(() => {
@@ -273,73 +255,101 @@ useEffect(() => {
     });
   };
 
-  // Handle saving data for a specific cell
-  const handleSaveData = async (cocId: string, currentValue?: string) => {
-    // Use the passed value or get it from state
-    const valueToSave = currentValue !== undefined ? currentValue : (values[cocId] || '');
-    
-    // Skip save if there's validation error
-    if (errors[cocId]) {
-      const newStatuses = { ...statuses, [cocId]: FieldStatus.ERROR };
-      setStatuses(newStatuses);
-      return;
-    }
-      
-    // Skip save if value is empty and not required
-    if ((currentValue === '' || currentValue === null || currentValue === undefined) && !validationRules.required) {
-      const newStatuses = { ...statuses, [cocId]: FieldStatus.IDLE };
-      setStatuses(newStatuses);
-      
-      return;
-    }
-    
+  // Use the debounce hook for handling save operations
+  const debouncedSave = useMatrixDebounce(async (cocId: string, value: string) => {
     try {
-      const newStatuses = { ...statuses, [cocId]: FieldStatus.SAVING };
-      setStatuses(newStatuses);
+      // Skip save if already saving this field
+      if (pendingSavesRef.current[cocId]) {
+        return;
+      }
+      
+      // Mark as saving
+      pendingSavesRef.current[cocId] = true;
+      setStatuses(prev => ({ ...prev, [cocId]: FieldStatus.SAVING }));
+      setAutoSaving(prev => ({ ...prev, [cocId]: true }));
+      
+      // Create an abort controller for this save operation
+      const controller = new AbortController();
+      abortControllersRef.current[cocId] = controller;
+      
+      // Ensure we're using the latest value
+      const valueToSave = values[cocId] || value;
+      
+      // Skip save if there's validation error
+      if (errors[cocId]) {
+        setStatuses(prev => ({ ...prev, [cocId]: FieldStatus.ERROR }));
+        return;
+      }
+        
+      // Skip save if value is empty and not required
+      if ((valueToSave === '' || valueToSave === null || valueToSave === undefined) && !validationRules.required) {
+        setStatuses(prev => ({ ...prev, [cocId]: FieldStatus.IDLE }));
+        return;
+      }
       
       // Try to save to server
       if (onSubmit) {
-        try {
-          const response = await onSubmit(currentValue, dataElementId, cocId);
-          
-          if (response.success) {
-            // Create new arrays/objects instead of modifying existing ones
-            const newSubmittedCombos = [...submittedCombos.filter(id => id !== cocId), cocId];
-            const newStatuses = { ...statuses, [cocId]: FieldStatus.SAVED };
-            
-            setSubmittedCombos(newSubmittedCombos);
-            setStatuses(newStatuses);
-          }
-        } catch (serverError) {
-          console.error('Error saving to server, keeping locally for later sync:', serverError);
-          const newStatuses = { ...statuses, [cocId]: FieldStatus.WARNING };
-          const newErrors = { ...errors, [cocId]: 'Saved locally, will sync later' };
-          
-          setStatuses(newStatuses);
-          setErrors(newErrors);
+        const response = await onSubmit(valueToSave, dataElementId, cocId);
+        
+        if (response.success) {
+          // Create new arrays/objects instead of modifying existing ones
+          setSubmittedCombos(prev => [...prev.filter(id => id !== cocId), cocId]);
+          setStatuses(prev => ({ ...prev, [cocId]: FieldStatus.SAVED }));
+        } else {
+          throw new Error("Server returned unsuccessful response");
         }
       } else {
         // Mark as saved even without server save
-        const newSubmittedCombos = [...submittedCombos.filter(id => id !== cocId), cocId];
-        const newStatuses = { ...statuses, [cocId]: FieldStatus.SAVED };
-        
-        setSubmittedCombos(newSubmittedCombos);
-        setStatuses(newStatuses);
+        setSubmittedCombos(prev => [...prev.filter(id => id !== cocId), cocId]);
+        setStatuses(prev => ({ ...prev, [cocId]: FieldStatus.SAVED }));
       }
     } catch (error) {
       console.error('Error saving data:', error);
-      const newStatuses = { ...statuses, [cocId]: FieldStatus.ERROR };
-      const newErrors = { 
-        ...errors, 
+      setStatuses(prev => ({ ...prev, [cocId]: FieldStatus.ERROR }));
+      setErrors(prev => ({ 
+        ...prev, 
         [cocId]: error instanceof Error ? error.message : 'Unknown error'
-      };
+      }));
+    } finally {
+      // Clean up regardless of outcome
+      setAutoSaving(prev => {
+        const newState = { ...prev };
+        delete newState[cocId];
+        return newState;
+      });
       
-      setStatuses(newStatuses);
-      setErrors(newErrors);
+      // Remove from pending saves
+      delete pendingSavesRef.current[cocId];
+      
+      // Remove abort controller
+      delete abortControllersRef.current[cocId];
     }
-  };
-  
-  // Update handleInputChange to use the new validation function
+  }, autoSaveDelay);
+
+  // Debounced validation function
+  const debouncedValidate = useMatrixDebounce((cocId: string, value: string) => {
+    const validationError = validateMatrixInput(value);
+    
+    if (validationError) {
+      setErrors(prev => ({ ...prev, [cocId]: validationError }));
+      // Notify parent about validation state
+      if (onValidationStateChange) {
+        onValidationStateChange(false);
+      }
+    } else {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[cocId];
+        return newErrors;
+      });
+      // Notify parent about validation state
+      if (onValidationStateChange) {
+        onValidationStateChange(true);
+      }
+    }
+  }, 300);
+
+  // Update handleInputChange to use debounced validation
   const handleInputChange = (cocId: string) => (event: ChangeEvent<HTMLInputElement>) => {
     const newValue = event.target.value;
     
@@ -349,92 +359,17 @@ useEffect(() => {
     // Set status to IDLE immediately
     setStatuses(prev => ({ ...prev, [cocId]: FieldStatus.IDLE }));
     
-    // Clear any existing validation timer for this field
-    if (debouncedValidationTimers.current[cocId]) {
-      clearTimeout(debouncedValidationTimers.current[cocId]);
-    }
-    
-    // Debounce the validation to prevent excessive validation during typing
-    debouncedValidationTimers.current[cocId] = setTimeout(() => {
-      // Run validation with the potentially latest value
-      const currentValue = values[cocId] || newValue;
-      const validationError = validateMatrixInput(currentValue);
-      
-      if (validationError) {
-        setErrors(prev => ({ ...prev, [cocId]: validationError }));
-        // Notify parent about validation state
-        if (onValidationStateChange) {
-          onValidationStateChange(false);
-        }
-      } else {
-        setErrors(prev => {
-          const newErrors = { ...prev };
-          delete newErrors[cocId];
-          return newErrors;
-        });
-        // Notify parent about validation state
-        if (onValidationStateChange) {
-          onValidationStateChange(true);
-        }
-      }
-      
-      // Clear the reference after execution
-      delete debouncedValidationTimers.current[cocId];
-    }, 300); // 300ms debounce for validation
-    
-    // Clean up on component unmount
-    useEffect(() => {
-      return () => {
-        // Clear all debounce timers when component unmounts
-        Object.values(debouncedValidationTimers.current).forEach(
-          timer => clearTimeout(timer)
-        );
-      };
-    }, []);
+    // Use debounced validation
+    debouncedValidate(cocId, newValue);
   };
 
   // Handle blur event for auto-saving
   const handleBlur = (cocId: string) => () => {
     const currentValue = values[cocId] || '';
     
-    // Only autosave if there's a value, no errors, and no pending save for this field
-    if (currentValue && !errors[cocId] && !pendingSaves[cocId]) {
-      // Mark this field as having a pending save
-      setPendingSaves(prev => ({ ...prev, [cocId]: true }));
-      
-      // Set autosaving UI state
-      const newAutoSaving = { ...autoSaving, [cocId]: true };
-      setAutoSaving(newAutoSaving);
-      
-      // Debounce the save operation
-      setTimeout(() => {
-        // Use the latest value when the timeout executes
-        const latestValue = values[cocId] || '';
-        
-        handleSaveData(cocId, latestValue)
-          .catch(error => {
-            console.error('Error during save:', error);
-            setStatuses(prev => ({ ...prev, [cocId]: FieldStatus.ERROR }));
-            setErrors(prev => ({ 
-              ...prev, 
-              [cocId]: error.message || 'Failed to save, please try again' 
-            }));
-          })
-          .finally(() => {
-            // Clear both pending and autosaving states
-            setPendingSaves(prev => {
-              const newState = { ...prev };
-              delete newState[cocId];
-              return newState;
-            });
-            
-            setAutoSaving(prev => {
-              const newState = { ...prev };
-              delete newState[cocId];
-              return newState;
-            });
-          });
-      }, autoSaveDelay);
+    // Only trigger save if we have a value and there are no errors
+    if (currentValue && !errors[cocId]) {
+      debouncedSave(cocId, currentValue);
     }
   };
 
@@ -505,15 +440,14 @@ useEffect(() => {
       fullWidth: true,
       variant: q.formStyles?.variant || 'outlined',
       size: q.formStyles?.fieldSize || 'small',
-      label: `${columnLabel}`,
+      label: q.shortName || `${columnLabel}`,
       placeholder: q.formStyles?.placeholder || `Enter here`,
       type: getInputType,
       value: currentValue,
       onChange: handleInputChange(cocId),
       onBlur: handleBlur(cocId),
       error: hasError,
-      //helperText: getHelperText(cocId),
-      disabled: q.disabled || isSaving,
+      disabled: q.disabled || (isSaving && !hasError), // Only disable if saving and no error
       required: validationRules.required || true,
       sx: { 
         bgcolor: 'white',

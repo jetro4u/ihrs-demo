@@ -95,11 +95,11 @@ const IHRSNavigation: FuseNavItemType = {
 					url: 'emergency-care-centers'
 				},
 				{
-					id: 'diagnostic-centers',
-					title: 'Diagnostic Centers',
+					id: 'opthalmology-report',
+					title: 'Opthalmology Report',
 					type: 'item',
 					icon: 'heroicons-outline:folder-open',
-					url: 'diagnostic-centers'
+					url: 'opthalmology-report'
 				},
 				{
 					id: 'specialist-services',

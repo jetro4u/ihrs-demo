@@ -24,7 +24,6 @@ function useDebounce<T extends (...args: never[]) => void>(callback: T, delay: n
 	);
 
 	useEffect(() => {
-		// Cleanup function to cancel any pending debounced calls
 		return () => {
 			debouncedFn.cancel();
 		};

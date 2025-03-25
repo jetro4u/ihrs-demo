@@ -4,7 +4,7 @@ import IHRSLayout from '../layout/IHRSLayout';
 import ihrsLayoutSettings from '../layout/ihrsLayoutSettings';
 import ihrsAuth from '@/app/(private)/apps/ihrs/layout/ihrsAuth';
 
-const MenuObjectReportLandingPage = lazy(() => import('../components/MenuObjectReportLandingPage'));
+const ObjectFormBlockReportLandingPage = lazy(() => import('../components/ObjectFormBlockReportLandingPage'));
 const MenuValueReportLandingPage = lazy(() => import('../components/MenuValueReportLandingPage'));
 const HospitalReportLandingPage = lazy(() => import('./HospitalReportLandingPage'));
 
@@ -23,35 +23,35 @@ const SecondaryRoute: FuseRouteItemType = {
 		},
 		{
 			path: 'laboratory-report',
-			element: <MenuObjectReportLandingPage title='Laboratory Test' category='Laboratory' />
+			element: <ObjectFormBlockReportLandingPage title='Laboratory Report' category='Laboratory' dataSetUid='oL88rT7STDs' />
 		},
 		{
 			path: 'radiology-report',
-			element: <MenuObjectReportLandingPage title='Radiology Test' category='Radiology' />
+			element: <ObjectFormBlockReportLandingPage title='Radiology Report' category='Radiology' dataSetUid='ukWqMLZIZIN' />
 		},
 		{
-			path: 'pathology-report',
-			element: <MenuValueReportLandingPage title='Pathology Test' category='Pathology' />
+			path: 'optician-report',
+			element: <ObjectFormBlockReportLandingPage title='Optician Report' category='Optician' dataSetUid='sNFzrpcIbDk' />
 		},
 		{
-			path: 'dermatology-clinic-report',
-			element: <MenuObjectReportLandingPage title='Dermatology Clinic' category='Dermatology' />
+			path: 'dermatology-report',
+			element: <ObjectFormBlockReportLandingPage title='Dermatology Report' category='Dermatology' dataSetUid='' />
 		},
 		{
-			path: 'dental-clinic-report',
-			element: <MenuObjectReportLandingPage title='Dental Clinic' category='Dental' />
+			path: 'dental-report',
+			element: <ObjectFormBlockReportLandingPage title='Dental Report' category='Dental' dataSetUid='' />
 		},
 		{
-			path: 'opthalmology-clinic-report',
-			element: <MenuObjectReportLandingPage title='Olphalmology Clinic' category='Olphalmology' />
+			path: 'opthalmology-report',
+			element: <ObjectFormBlockReportLandingPage title='Olphalmology Report' category='Olphalmology' dataSetUid='u4vRGENdIQv' />
 		},
 		{
-			path: 'optician-clinic-report',
-			element: <MenuObjectReportLandingPage title='Optician Test' category='Optician' />
+			path: 'surgical-services-report',
+			element: <MenuValueReportLandingPage title='Surgical Services Report' category='Surgical Services' />
 		},
 		{
-			path: 'specialist-services',
-			element: <MenuValueReportLandingPage title='Specialist Services' category='Specialist Services' />
+			path: 'specialist-services-report',
+			element: <MenuValueReportLandingPage title='Specialist Services Report' category='Specialist Services' />
 		}
 	]
 };
